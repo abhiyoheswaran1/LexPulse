@@ -1,8 +1,13 @@
 // GET /api/companies/:id/risk
 //
-// Default: returns the latest snapshot in the v2 contract.
+// Default: returns the latest snapshot in the latest score-version contract
+// available for this company (v3 if any, else v2, else v1).
 // ?history=true&limit=N: returns the last N snapshots (default 90).
-// ?version=v1: returns the latest v1 snapshot if any (for replay/diff).
+// ?version=v1|v2|v3: returns the latest snapshot of that version (replay/diff).
+//
+// Response shape varies by version: v3 includes breakdown.judge; v2 does not.
+// Clients that pin a version see only the breakdown fields that existed in
+// that methodology revision.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -74,6 +79,31 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
         }
       : null;
 
+  // breakdown is version-shaped: v1 returns 3 fields, v2 returns 6, v3 returns 7.
+  // This preserves contract stability for clients that pinned ?version=vN.
+  type Breakdown = {
+    volume: number;
+    recency: number;
+    severity: number;
+    momentum?: number;
+    concentration?: number;
+    jurisdiction?: number;
+    judge?: number;
+  };
+  const breakdown: Breakdown = {
+    volume: latest.volumeFactor,
+    recency: latest.recencyFactor,
+    severity: latest.severityFactor,
+  };
+  if (latest.scoreVersion === "v2" || latest.scoreVersion === "v3") {
+    breakdown.momentum = latest.momentumFactor ?? 0;
+    breakdown.concentration = latest.concentrationFactor ?? 0;
+    breakdown.jurisdiction = latest.jurisdictionFactor ?? 1;
+  }
+  if (latest.scoreVersion === "v3") {
+    breakdown.judge = latest.judgeFactor ?? 1;
+  }
+
   return NextResponse.json({
     score: latest.score,
     band: latest.band,
@@ -81,15 +111,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     version: `${latest.scoreVersion}.0`,
     change: { delta_7d: latest.delta7d, delta_30d: latest.delta30d },
     drivers: latest.drivers ?? [],
-    breakdown: {
-      volume: latest.volumeFactor,
-      recency: latest.recencyFactor,
-      severity: latest.severityFactor,
-      momentum: latest.momentumFactor ?? 0,
-      concentration: latest.concentrationFactor ?? 0,
-      jurisdiction: latest.jurisdictionFactor ?? 1,
-      judge: latest.judgeFactor ?? 1,
-    },
+    breakdown,
     benchmark,
     sources: SOURCES,
   });

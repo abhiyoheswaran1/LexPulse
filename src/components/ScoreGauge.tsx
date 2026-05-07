@@ -11,7 +11,8 @@ type Breakdown = {
 };
 
 // Simple radial-style gauge built from SVG arcs. No external chart needed.
-// When `breakdown` is provided, also renders a 6-bar component readout below.
+// When `breakdown` is provided, renders a per-component readout below
+// (3 bars for v1, 6 for v2, up to 7 for v3 including the judge factor).
 export function ScoreGauge({
   score,
   band,

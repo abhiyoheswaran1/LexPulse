@@ -127,15 +127,29 @@ async function main() {
   }
 
   // --- Pass 2 ---
+  // Build a per-company index into the sector cohort so we can exclude *this*
+  // company's score (and not just any tied-score peer's) when benchmarking.
+  const sectorIndex: Map<string, Map<string, number>> = new Map();
+  for (const { co } of computed) {
+    if (!co.sectorKey) continue;
+    let inner = sectorIndex.get(co.sectorKey);
+    if (!inner) {
+      inner = new Map();
+      sectorIndex.set(co.sectorKey, inner);
+    }
+    inner.set(co.id, inner.size);
+  }
+
   let written = 0;
   let alerts = 0;
   for (const { co, v3, cases12moTotal } of computed) {
     // Benchmark — exclude the company's own score from its cohort to avoid
-    // self-bias in percentile rank. (Subtle for cohort >= 30 but defensible.)
+    // self-bias in percentile rank. Lookup by company id (not by score value)
+    // so tied-score peers stay in the cohort.
     let benchmark: ReturnType<typeof computeBenchmark> | null = null;
     if (co.sectorKey) {
       const cohortAll = sectorScores.get(co.sectorKey) ?? [];
-      const idx = cohortAll.indexOf(v3.score);
+      const idx = sectorIndex.get(co.sectorKey)?.get(co.id) ?? -1;
       const cohort = idx >= 0 ? [...cohortAll.slice(0, idx), ...cohortAll.slice(idx + 1)] : cohortAll;
       benchmark = computeBenchmark(v3.score, cohort);
     }
@@ -144,7 +158,6 @@ async function main() {
     // No fallback to "latest prior of any version" — that conflated methodology
     // changes (v1→v3) with real risk movement.
     const latestPriorV3 = co.scores.find((s) => s.scoreVersion === "v3");
-    const latestPriorAny = co.scores[0];
     const delta7dRef = findScoreNDaysAgo(co.scores, 7, now, "v3");
     const delta30dRef = findScoreNDaysAgo(co.scores, 30, now, "v3");
     const delta7d = delta7dRef !== null ? v3.score - delta7dRef : null;
@@ -248,9 +261,6 @@ async function main() {
       });
       alerts++;
     }
-    // Reference the legacy variable so the no-unused-vars lint stays quiet
-    // (we keep it around for future "any-version" comparisons if needed).
-    void latestPriorAny;
 
     const alreadyAlerted = new Set<string>();
     for (const a of co.alerts) {

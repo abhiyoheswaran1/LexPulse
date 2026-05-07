@@ -26,11 +26,9 @@ describe("judgeMultiplier", () => {
     expect(judgeMultiplier(profile)).toBeCloseTo(0.92, 2);
   });
 
-  it("median (~0.35 dismissal) → near-neutral", () => {
+  it("median (~0.35 dismissal) → near-neutral (~1.01 per methodology)", () => {
     const profile: JudgeProfileLite = { dismissalRate: 0.35, caseCount: 100 };
-    const m = judgeMultiplier(profile);
-    expect(m).toBeGreaterThan(0.99);
-    expect(m).toBeLessThan(1.02);
+    expect(judgeMultiplier(profile)).toBeCloseTo(1.01, 2);
   });
 
   it("clamps to [0.92, 1.10]", () => {

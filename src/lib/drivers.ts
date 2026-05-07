@@ -190,8 +190,8 @@ export function generateDrivers(input: DriverInput): Driver[] {
       label: `Cases assigned to judges with low dismissal rates (${pct}% avg)`,
       weight: Math.min(1, (0.25 - curr.meanJudgeDismissal) / 0.25),
       evidence: {
-        mean_dismissal_rate: Number(curr.meanJudgeDismissal.toFixed(3)),
-        sample_size_judges: curr.judgeSampleSize,
+        meanDismissalRate: Number(curr.meanJudgeDismissal.toFixed(3)),
+        sampleSizeJudges: curr.judgeSampleSize,
       },
     });
   }
