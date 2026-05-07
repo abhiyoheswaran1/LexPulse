@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { Panel, Stat } from "@/components/Panel";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { CaseTimeline } from "@/components/CaseTimeline";
+import { DriversPanel, type Driver } from "@/components/DriversPanel";
+import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 import { formatDate, formatRelative } from "@/lib/utils";
 import { ChevronLeft, Gavel, Scale } from "lucide-react";
 
@@ -13,6 +15,7 @@ async function getCompany(id: string) {
   return prisma.company.findUnique({
     where: { id },
     include: {
+      sector: { select: { label: true } },
       links: {
         include: { caseRef: { include: { judge: true } } },
         orderBy: { caseRef: { dateFiled: "desc" } },
@@ -79,15 +82,64 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </div>
         {score && (
           <div className="shrink-0 rounded-lg border border-border bg-panel px-6 py-4 flex items-center gap-5">
-            <ScoreGauge score={score.score} band={score.band} />
+            <ScoreGauge
+              score={score.score}
+              band={score.band}
+              breakdown={{
+                volume: score.volumeFactor,
+                recency: score.recencyFactor,
+                severity: score.severityFactor,
+                momentum: score.momentumFactor ?? undefined,
+                concentration: score.concentrationFactor ?? undefined,
+                jurisdiction: score.jurisdictionFactor ?? undefined,
+              }}
+            />
             <div className="space-y-1.5 text-xs">
               <FactorBar label="Volume" v={score.volumeFactor} />
               <FactorBar label="Recency" v={score.recencyFactor} />
               <FactorBar label="Severity" v={score.severityFactor} />
+              {score.momentumFactor != null && <FactorBar label="Momentum" v={score.momentumFactor} />}
+              {score.concentrationFactor != null && <FactorBar label="Concentration" v={score.concentrationFactor} />}
+              {score.jurisdictionFactor != null && (
+                <FactorBar
+                  label="Jurisdiction"
+                  v={Math.min(1, Math.max(0, (score.jurisdictionFactor - 0.85) / 0.3))}
+                />
+              )}
+              {score.delta7d != null && score.delta7d !== 0 && (
+                <div className="flex items-center gap-2 w-44 text-[11px]">
+                  <span className="w-16 text-muted">7d Δ</span>
+                  <span className={`tabular font-semibold ${score.delta7d > 0 ? "text-bad" : "text-ok"}`}>
+                    {score.delta7d > 0 ? "↑" : "↓"}
+                    {Math.abs(score.delta7d)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
       </header>
+
+      {score && (
+        <div className="grid grid-cols-2 gap-6">
+          <DriversPanel drivers={(score.drivers as unknown as Driver[]) ?? []} />
+          <BenchmarkPanel
+            score={score.score}
+            benchmark={
+              score.percentile != null
+                ? {
+                    sector: co.sectorKey,
+                    sector_label: co.sector?.label ?? null,
+                    cohort_size: score.cohortSize,
+                    percentile: score.percentile,
+                    sector_median: score.cohortP50,
+                    z_score: score.zScore,
+                  }
+                : null
+            }
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Total cases" value={cases.length} />
