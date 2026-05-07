@@ -27,6 +27,13 @@ model Company {
   normKey     String   @unique
   ticker      String?
   jurisdiction String?
+  // Sector classification (Score v2). Source can be "russell1000" (manual),
+  // "edgar" (CIK→SIC lookup), or null. confidence 0..1.
+  naicsCode         String?
+  sectorKey         String?
+  sector            Sector?  @relation(fields: [sectorKey], references: [key])
+  sectorSource      String?
+  sectorConfidence  Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -35,7 +42,17 @@ model Company {
   alerts      Alert[]
 
   @@index([name])
+  @@index([sectorKey])
   @@map("companies")
+}
+
+model Sector {
+  key            String    @id
+  label          String
+  naicsPrefixes  String[]
+  companies      Company[]
+
+  @@map("sectors")
 }
 
 model Case {
@@ -98,10 +115,26 @@ model RiskScore {
   score       Int
   // band derived from score: low | moderate | elevated | high
   band        String
-  // breakdown for UI tooltips & explainability
+  // breakdown for UI tooltips & explainability (v1)
   volumeFactor   Float
   recencyFactor  Float
   severityFactor Float
+  // v2 components — additive; v1 rows default to neutral values
+  momentumFactor       Float    @default(0)
+  concentrationFactor  Float    @default(0)
+  jurisdictionFactor   Float    @default(1)
+  scoreVersion         String   @default("v1")
+  // drivers (denormalized JSON for cheap reads): array of {label, weight, type, evidence}
+  drivers              Json?
+  // change deltas (precomputed at write); null if no prior snapshot in window
+  delta7d              Int?
+  delta30d             Int?
+  // benchmark fields — null when cohort < 30
+  cohortSize           Int?
+  cohortP50            Int?
+  cohortMean           Float?
+  percentile           Float?
+  zScore               Float?
   // total cases at time of snapshot
   caseCount   Int
   // cases filed in trailing 12 months
