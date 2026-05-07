@@ -9,7 +9,11 @@
     "lint": "next lint",
     "ingest": "tsx scripts/ingest.ts",
     "seed": "tsx scripts/seed.ts",
+    "seed:sectors": "tsx scripts/seed-sectors.ts",
     "risk": "tsx scripts/compute-risk.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
@@ -29,6 +33,7 @@
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vitest/ui": "^4.1.5",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.18",
@@ -36,6 +41,7 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.15",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.5"
   }
 }
