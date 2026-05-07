@@ -88,6 +88,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
       momentum: latest.momentumFactor ?? 0,
       concentration: latest.concentrationFactor ?? 0,
       jurisdiction: latest.jurisdictionFactor ?? 1,
+      judge: latest.judgeFactor ?? 1,
     },
     benchmark,
     sources: SOURCES,

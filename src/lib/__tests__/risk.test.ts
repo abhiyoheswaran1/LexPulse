@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeRisk, computeRiskV2, type CaseLite, type CaseLiteV2 } from "../risk";
+import { computeRisk, computeRiskV2, computeRiskV3, type CaseLite, type CaseLiteV2, type CaseLiteV3 } from "../risk";
+import type { JudgeProfileLite } from "../judges";
 
 const oneDay = 86400000;
 const now = new Date("2026-05-08T00:00:00Z");
@@ -138,5 +139,66 @@ describe("computeRiskV2", () => {
     ];
     const v2 = computeRiskV2(cases, null, now);
     expect(v2.concentrationFactor).toBe(0);
+  });
+});
+
+describe("computeRiskV3", () => {
+  it("equals v2 score when no judge profiles available (judgeFactor = 1.0)", () => {
+    const cases: CaseLiteV3[] = Array.from({ length: 5 }, (_, i) => ({
+      dateFiled: new Date(now.getTime() - i * 30 * oneDay),
+      natureOfSuit: "110",
+      court: "ca9",
+      judgeId: `judge_${i}`,
+    }));
+    const v2 = computeRiskV2(cases, null, now);
+    const v3 = computeRiskV3(cases, new Map(), now);
+    expect(v3.score).toBe(v2.score);
+    expect(v3.judgeFactor).toBe(1.0);
+    expect(v3.scoreVersion).toBe("v3");
+  });
+
+  it("low-dismissal judges nudge score up (judgeFactor > 1)", () => {
+    const cases: CaseLiteV3[] = Array.from({ length: 5 }, (_, i) => ({
+      dateFiled: new Date(now.getTime() - i * 30 * oneDay),
+      natureOfSuit: "110",
+      court: null,
+      judgeId: "j_low",
+    }));
+    const profiles = new Map<string, JudgeProfileLite>([
+      ["j_low", { dismissalRate: 0.10, caseCount: 50 }],
+    ]);
+    const v2 = computeRiskV2(cases, null, now);
+    const v3 = computeRiskV3(cases, profiles, now);
+    expect(v3.judgeFactor).toBeCloseTo(1.10, 2);
+    expect(v3.score).toBeGreaterThanOrEqual(v2.score);
+  });
+
+  it("high-dismissal judges nudge score down (judgeFactor < 1)", () => {
+    const cases: CaseLiteV3[] = Array.from({ length: 5 }, (_, i) => ({
+      dateFiled: new Date(now.getTime() - i * 30 * oneDay),
+      natureOfSuit: "110",
+      court: null,
+      judgeId: "j_high",
+    }));
+    const profiles = new Map<string, JudgeProfileLite>([
+      ["j_high", { dismissalRate: 0.60, caseCount: 50 }],
+    ]);
+    const v3 = computeRiskV3(cases, profiles, now);
+    expect(v3.judgeFactor).toBeCloseTo(0.92, 2);
+  });
+
+  it("meanJudgeDismissal computed only over case-judge pairs with valid profiles", () => {
+    const cases: CaseLiteV3[] = [
+      { dateFiled: new Date(now.getTime() - 10 * oneDay), natureOfSuit: "110", court: null, judgeId: "j1" },
+      { dateFiled: new Date(now.getTime() - 20 * oneDay), natureOfSuit: "110", court: null, judgeId: "j2" },
+      { dateFiled: new Date(now.getTime() - 30 * oneDay), natureOfSuit: "110", court: null, judgeId: null },
+    ];
+    const profiles = new Map<string, JudgeProfileLite>([
+      ["j1", { dismissalRate: 0.20, caseCount: 50 }],
+      ["j2", { dismissalRate: 0.30, caseCount: 50 }],
+    ]);
+    const v3 = computeRiskV3(cases, profiles, now);
+    expect(v3.meanJudgeDismissal).toBeCloseTo(0.25, 3);
+    expect(v3.judgeSampleSize).toBe(2);
   });
 });

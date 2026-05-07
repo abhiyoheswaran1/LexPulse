@@ -10,6 +10,7 @@
     "ingest": "tsx scripts/ingest.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:sectors": "tsx scripts/seed-sectors.ts",
+    "seed:judges": "tsx scripts/seed-judges.ts",
     "risk": "tsx scripts/compute-risk.ts",
     "test": "vitest run",
     "test:watch": "vitest",

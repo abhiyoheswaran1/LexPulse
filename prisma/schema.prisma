@@ -100,12 +100,30 @@ model CompanyCaseLink {
 }
 
 model Judge {
-  id     String @id @default(cuid())
-  name   String @unique
-  court  String?
-  cases  Case[]
+  id      String         @id @default(cuid())
+  name    String         @unique
+  court   String?
+  cases   Case[]
+  profile JudgeProfile?
 
   @@map("judges")
+}
+
+model JudgeProfile {
+  judgeId            String    @id
+  // 0..1 — fraction of terminated cases with duration < 90 days. Null when
+  // sample size < 5 (we don't trust small estimates).
+  dismissalRate      Float?
+  avgDurationDays    Int?
+  // 0..1 — null when no terminated outcomes available (waiting on outcome
+  // extraction, sub-project F).
+  plaintiffWinRate   Float?
+  // Sample size used for the estimate.
+  caseCount          Int       @default(0)
+  computedAt         DateTime  @default(now())
+  judge              Judge     @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@map("judge_profiles")
 }
 
 model RiskScore {
@@ -123,6 +141,10 @@ model RiskScore {
   momentumFactor       Float    @default(0)
   concentrationFactor  Float    @default(0)
   jurisdictionFactor   Float    @default(1)
+  // v3 components — additive; v1/v2 rows default to neutral values.
+  judgeFactor               Float    @default(1)
+  firmSignalFactor          Float    @default(0)  // v3.1 seam
+  similaritySignalFactor    Float    @default(0)  // v3.2 seam
   scoreVersion         String   @default("v1")
   // drivers (denormalized JSON for cheap reads): array of {label, weight, type, evidence}
   drivers              Json?

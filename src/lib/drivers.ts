@@ -28,6 +28,10 @@ export type DriverSnapshot = {
   // 12mo case count — used by category_concentration to avoid firing on
   // single-case companies (one-case-in-securities ≠ "concentration").
   cat12moTotal?: number;
+  // Judge signals (v3): mean dismissal rate over case-judges with valid
+  // profiles, and the sample size. Used by judge_skew template.
+  meanJudgeDismissal?: number | null;
+  judgeSampleSize?: number;
 };
 
 export type NewCase = {
@@ -169,6 +173,26 @@ export function generateDrivers(input: DriverInput): Driver[] {
       label: `First litigation activity in 6+ months`,
       weight: Math.min(1, curr.recent30 / 3),
       evidence: { recent30: curr.recent30 },
+    });
+  }
+
+  // judge_skew (v3): low average dismissal rate across the company's case
+  // judges signals cases tend to advance in this judicial environment.
+  // Requires >= 3 judge-profile data points to fire.
+  if (
+    curr.meanJudgeDismissal != null &&
+    (curr.judgeSampleSize ?? 0) >= 3 &&
+    curr.meanJudgeDismissal < 0.25
+  ) {
+    const pct = Math.round(curr.meanJudgeDismissal * 100);
+    candidates.push({
+      type: "judge_skew",
+      label: `Cases assigned to judges with low dismissal rates (${pct}% avg)`,
+      weight: Math.min(1, (0.25 - curr.meanJudgeDismissal) / 0.25),
+      evidence: {
+        mean_dismissal_rate: Number(curr.meanJudgeDismissal.toFixed(3)),
+        sample_size_judges: curr.judgeSampleSize,
+      },
     });
   }
 

@@ -7,6 +7,7 @@ type Breakdown = {
   momentum?: number;
   concentration?: number;
   jurisdiction?: number;
+  judge?: number;
 };
 
 // Simple radial-style gauge built from SVG arcs. No external chart needed.
@@ -56,6 +57,7 @@ export function ScoreGauge({
               ["mom", breakdown.momentum],
               ["cnc", breakdown.concentration],
               ["jur", breakdown.jurisdiction],
+              ["jdg", breakdown.judge],
             ] as Array<[string, number | undefined]>
           )
             .filter((e): e is [string, number] => typeof e[1] === "number")

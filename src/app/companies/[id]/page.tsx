@@ -92,6 +92,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                 momentum: score.momentumFactor ?? undefined,
                 concentration: score.concentrationFactor ?? undefined,
                 jurisdiction: score.jurisdictionFactor ?? undefined,
+                judge: score.judgeFactor ?? undefined,
               }}
             />
             <div className="space-y-1.5 text-xs">
@@ -104,6 +105,12 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                 <FactorBar
                   label="Jurisdiction"
                   v={Math.min(1, Math.max(0, (score.jurisdictionFactor - 0.85) / 0.3))}
+                />
+              )}
+              {score.judgeFactor != null && (
+                <FactorBar
+                  label="Judge"
+                  v={Math.min(1, Math.max(0, (score.judgeFactor - 0.92) / 0.18))}
                 />
               )}
               {score.delta7d != null && score.delta7d !== 0 && (

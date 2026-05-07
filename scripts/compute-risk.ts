@@ -1,7 +1,7 @@
-// Recompute per-company risk scores and generate alerts (v2).
+// Recompute per-company risk scores and generate alerts (v3).
 //
 // Two-pass:
-//   Pass 1 — compute v2 breakdown + drivers per company; accumulate
+//   Pass 1 — compute v3 breakdown + drivers per company; accumulate
 //            { sectorKey: scores[] } in memory.
 //   Pass 2 — compute benchmarks per company against accumulated cohort;
 //            persist enriched RiskScore snapshot; emit alerts.
@@ -9,9 +9,14 @@
 // Idempotent on alerts: dedup by case id (new_case) and 24h (case_spike).
 
 import { prisma } from "../src/lib/db";
-import { computeRiskV2, type CaseLiteV2, type RiskBreakdownV2 } from "../src/lib/risk";
+import {
+  computeRiskV3,
+  type CaseLiteV3,
+  type RiskBreakdownV3,
+} from "../src/lib/risk";
 import { generateDrivers, type DriverSnapshot, type NewCase } from "../src/lib/drivers";
 import { computeBenchmark } from "../src/lib/benchmarks";
+import type { JudgeProfileLite } from "../src/lib/judges";
 
 const ONE_DAY = 86400000;
 
@@ -32,6 +37,7 @@ async function loadCompanies() {
               natureOfSuit: true,
               caseName: true,
               court: true,
+              judgeId: true,
             },
           },
         },
@@ -45,18 +51,29 @@ async function loadCompanies() {
   });
 }
 
+async function loadJudgeProfiles(): Promise<Map<string, JudgeProfileLite>> {
+  const rows = await prisma.judgeProfile.findMany({
+    select: { judgeId: true, dismissalRate: true, caseCount: true },
+  });
+  const map = new Map<string, JudgeProfileLite>();
+  for (const r of rows) {
+    map.set(r.judgeId, { dismissalRate: r.dismissalRate, caseCount: r.caseCount });
+  }
+  return map;
+}
+
 function pass1(
   co: CompanyRow,
+  judgeProfiles: Map<string, JudgeProfileLite>,
   now: Date,
-): { v2: RiskBreakdownV2; cases: CaseLiteV2[]; cases12moTotal: number } {
-  const cases: CaseLiteV2[] = co.links.map((l) => ({
+): { v3: RiskBreakdownV3; cases: CaseLiteV3[]; cases12moTotal: number } {
+  const cases: CaseLiteV3[] = co.links.map((l) => ({
     dateFiled: l.caseRef.dateFiled,
     natureOfSuit: l.caseRef.natureOfSuit,
     court: l.caseRef.court,
+    judgeId: l.caseRef.judgeId,
   }));
-  const v2 = computeRiskV2(cases, null, now);
-  // Count 12mo cases inline so drivers.category_concentration can apply its
-  // ≥3 minimum-count gate without re-traversing.
+  const v3 = computeRiskV3(cases, judgeProfiles, now);
   let cases12moTotal = 0;
   for (const c of cases) {
     if (!c.dateFiled) continue;
@@ -64,11 +81,11 @@ function pass1(
     if (age < 0 || age > 365 * 86400000) continue;
     cases12moTotal++;
   }
-  return { v2, cases, cases12moTotal };
+  return { v3, cases, cases12moTotal };
 }
 
 // Returns the score from the most recent snapshot at-or-before (now - n days),
-// filtered to a specific scoreVersion so v1↔v2 cross-version comparisons don't
+// filtered to a specific scoreVersion so v1↔v3 cross-version comparisons don't
 // leak into delta computation.
 function findScoreNDaysAgo(
   scores: CompanyRow["scores"],
@@ -85,23 +102,26 @@ function findScoreNDaysAgo(
 }
 
 async function main() {
-  const companies = await loadCompanies();
+  const [companies, judgeProfiles] = await Promise.all([
+    loadCompanies(),
+    loadJudgeProfiles(),
+  ]);
   const now = new Date();
 
   // --- Pass 1 ---
   const computed: Array<{
     co: CompanyRow;
-    v2: RiskBreakdownV2;
-    cases: CaseLiteV2[];
+    v3: RiskBreakdownV3;
+    cases: CaseLiteV3[];
     cases12moTotal: number;
   }> = [];
   const sectorScores: Map<string, number[]> = new Map();
   for (const co of companies) {
-    const { v2, cases, cases12moTotal } = pass1(co, now);
-    computed.push({ co, v2, cases, cases12moTotal });
+    const { v3, cases, cases12moTotal } = pass1(co, judgeProfiles, now);
+    computed.push({ co, v3, cases, cases12moTotal });
     if (co.sectorKey) {
       const arr = sectorScores.get(co.sectorKey) ?? [];
-      arr.push(v2.score);
+      arr.push(v3.score);
       sectorScores.set(co.sectorKey, arr);
     }
   }
@@ -109,26 +129,26 @@ async function main() {
   // --- Pass 2 ---
   let written = 0;
   let alerts = 0;
-  for (const { co, v2, cases12moTotal } of computed) {
+  for (const { co, v3, cases12moTotal } of computed) {
     // Benchmark — exclude the company's own score from its cohort to avoid
     // self-bias in percentile rank. (Subtle for cohort >= 30 but defensible.)
     let benchmark: ReturnType<typeof computeBenchmark> | null = null;
     if (co.sectorKey) {
       const cohortAll = sectorScores.get(co.sectorKey) ?? [];
-      const idx = cohortAll.indexOf(v2.score);
+      const idx = cohortAll.indexOf(v3.score);
       const cohort = idx >= 0 ? [...cohortAll.slice(0, idx), ...cohortAll.slice(idx + 1)] : cohortAll;
-      benchmark = computeBenchmark(v2.score, cohort);
+      benchmark = computeBenchmark(v3.score, cohort);
     }
 
-    // Change deltas — null when no v2 snapshot exists in the lookback window.
+    // Change deltas — null when no v3 snapshot exists in the lookback window.
     // No fallback to "latest prior of any version" — that conflated methodology
-    // changes (v1→v2) with real risk movement.
-    const latestPriorV2 = co.scores.find((s) => s.scoreVersion === "v2");
+    // changes (v1→v3) with real risk movement.
+    const latestPriorV3 = co.scores.find((s) => s.scoreVersion === "v3");
     const latestPriorAny = co.scores[0];
-    const delta7dRef = findScoreNDaysAgo(co.scores, 7, now, "v2");
-    const delta30dRef = findScoreNDaysAgo(co.scores, 30, now, "v2");
-    const delta7d = delta7dRef !== null ? v2.score - delta7dRef : null;
-    const delta30d = delta30dRef !== null ? v2.score - delta30dRef : null;
+    const delta7dRef = findScoreNDaysAgo(co.scores, 7, now, "v3");
+    const delta30dRef = findScoreNDaysAgo(co.scores, 30, now, "v3");
+    const delta7d = delta7dRef !== null ? v3.score - delta7dRef : null;
+    const delta30d = delta30dRef !== null ? v3.score - delta30dRef : null;
 
     // Drivers
     const sevenAgo = new Date(now.getTime() - 7 * ONE_DAY);
@@ -137,33 +157,35 @@ async function main() {
       .filter((c) => c.dateFiled && c.dateFiled >= sevenAgo && c.dateFiled <= now)
       .map((c) => ({ caseName: c.caseName, natureOfSuit: c.natureOfSuit, dateFiled: c.dateFiled! }));
     const currSnap: DriverSnapshot = {
-      score: v2.score,
-      recent30: v2.recent30,
-      baselineMonthly: v2.baselineMonthly,
-      topCategory: v2.topCategory,
-      topCategoryShare: v2.topCategoryShare,
-      topCircuit: v2.topCircuit,
-      topCircuitShare: v2.topCircuitShare,
-      jurisdictionFactor: v2.jurisdictionFactor,
+      score: v3.score,
+      recent30: v3.recent30,
+      baselineMonthly: v3.baselineMonthly,
+      topCategory: v3.topCategory,
+      topCategoryShare: v3.topCategoryShare,
+      topCircuit: v3.topCircuit,
+      topCircuitShare: v3.topCircuitShare,
+      jurisdictionFactor: v3.jurisdictionFactor,
       cat12moTotal: cases12moTotal,
+      meanJudgeDismissal: v3.meanJudgeDismissal,
+      judgeSampleSize: v3.judgeSampleSize,
     };
-    // Build prevSnap from the prior v2 row's persisted rawStats. v1 rows have
+    // Build prevSnap from the prior v3 row's persisted rawStats. v1 rows have
     // no rawStats so their recent30 is unknown (null) — drivers that depend on
     // it must short-circuit. Cross-version drivers (risk_jump/decay) are also
-    // suppressed when there's no prior v2 snapshot.
-    const prevRawStats = (latestPriorV2?.rawStats ?? null) as
+    // suppressed when there's no prior v3 snapshot.
+    const prevRawStats = (latestPriorV3?.rawStats ?? null) as
       | { recent30?: number; baselineMonthly?: number }
       | null;
-    const prevSnap: DriverSnapshot | null = latestPriorV2
+    const prevSnap: DriverSnapshot | null = latestPriorV3
       ? {
-          score: latestPriorV2.score,
+          score: latestPriorV3.score,
           recent30: prevRawStats?.recent30 ?? null,
           baselineMonthly: prevRawStats?.baselineMonthly ?? 0,
           topCategory: null,
           topCategoryShare: 0,
           topCircuit: null,
           topCircuitShare: 0,
-          jurisdictionFactor: latestPriorV2.jurisdictionFactor ?? 1,
+          jurisdictionFactor: latestPriorV3.jurisdictionFactor ?? 1,
         }
       : null;
     const drivers = generateDrivers({ curr: currSnap, prev: prevSnap, newCases7d });
@@ -172,26 +194,31 @@ async function main() {
     await prisma.riskScore.create({
       data: {
         companyId: co.id,
-        score: v2.score,
-        band: v2.band,
-        volumeFactor: v2.volumeFactor,
-        recencyFactor: v2.recencyFactor,
-        severityFactor: v2.severityFactor,
-        momentumFactor: v2.momentumFactor,
-        concentrationFactor: v2.concentrationFactor,
-        jurisdictionFactor: v2.jurisdictionFactor,
-        scoreVersion: "v2",
-        caseCount: v2.caseCount,
-        recentCases: v2.recentCases,
+        score: v3.score,
+        band: v3.band,
+        volumeFactor: v3.volumeFactor,
+        recencyFactor: v3.recencyFactor,
+        severityFactor: v3.severityFactor,
+        momentumFactor: v3.momentumFactor,
+        concentrationFactor: v3.concentrationFactor,
+        jurisdictionFactor: v3.jurisdictionFactor,
+        judgeFactor: v3.judgeFactor,
+        firmSignalFactor: v3.firmSignalFactor,
+        similaritySignalFactor: v3.similaritySignalFactor,
+        scoreVersion: "v3",
+        caseCount: v3.caseCount,
+        recentCases: v3.recentCases,
         drivers: drivers as unknown as object,
         rawStats: {
-          recent30: v2.recent30,
-          baselineMonthly: v2.baselineMonthly,
-          topCategory: v2.topCategory,
-          topCategoryShare: v2.topCategoryShare,
-          topCircuit: v2.topCircuit,
-          topCircuitShare: v2.topCircuitShare,
+          recent30: v3.recent30,
+          baselineMonthly: v3.baselineMonthly,
+          topCategory: v3.topCategory,
+          topCategoryShare: v3.topCategoryShare,
+          topCircuit: v3.topCircuit,
+          topCircuitShare: v3.topCircuitShare,
           cat12moTotal: cases12moTotal,
+          meanJudgeDismissal: v3.meanJudgeDismissal,
+          judgeSampleSize: v3.judgeSampleSize,
         } as unknown as object,
         delta7d,
         delta30d,
@@ -204,19 +231,19 @@ async function main() {
     });
     written++;
 
-    // --- Alerts (preserved from v1, plus risk_jump on v2 deltas) ---
-    // risk_jump only fires when comparing same-version scores; first v2
+    // --- Alerts (preserved from v1, plus risk_jump on v3 deltas) ---
+    // risk_jump only fires when comparing same-version scores; first v3
     // snapshot per company therefore doesn't generate a methodology-change
     // false alarm.
-    if (latestPriorV2 && v2.score - latestPriorV2.score >= 15) {
+    if (latestPriorV3 && v3.score - latestPriorV3.score >= 15) {
       await prisma.alert.create({
         data: {
           companyId: co.id,
           type: "risk_jump",
-          severity: v2.score >= 75 ? "critical" : "warn",
-          title: `Risk score jumped ${latestPriorV2.score} → ${v2.score}`,
-          body: `${co.name} risk increased by ${v2.score - latestPriorV2.score} points since last snapshot.`,
-          refs: { from: latestPriorV2.score, to: v2.score },
+          severity: v3.score >= 75 ? "critical" : "warn",
+          title: `Risk score jumped ${latestPriorV3.score} → ${v3.score}`,
+          body: `${co.name} risk increased by ${v3.score - latestPriorV3.score} points since last snapshot.`,
+          refs: { from: latestPriorV3.score, to: v3.score },
         },
       });
       alerts++;
@@ -282,7 +309,7 @@ async function main() {
     }
   }
 
-  console.log(`wrote ${written} v2 risk snapshots, generated ${alerts} alerts`);
+  console.log(`wrote ${written} v3 risk snapshots, generated ${alerts} alerts`);
   await prisma.$disconnect();
 }
 

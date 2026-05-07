@@ -10,6 +10,7 @@
 
 import { categorize, severityForNos, type NosCategory } from "./case-types";
 import { courtCircuit, courtWeight } from "./jurisdiction";
+import { aggregateJudgeMultiplier, type JudgeProfileLite } from "./judges";
 
 // --- v1 (preserved, unchanged behavior) ---
 
@@ -81,6 +82,7 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
 // --- v2 ---
 
 export type CaseLiteV2 = CaseLite & { court: string | null };
+export type CaseLiteV3 = CaseLiteV2 & { judgeId: string | null };
 
 export type RiskBreakdownV2 = RiskBreakdown & {
   momentumFactor: number;
@@ -94,6 +96,18 @@ export type RiskBreakdownV2 = RiskBreakdown & {
   topCategoryShare: number;
   topCircuit: string | null;
   topCircuitShare: number;
+};
+
+export type RiskBreakdownV3 = Omit<RiskBreakdownV2, "scoreVersion"> & {
+  judgeFactor: number;
+  // v3.1/v3.2 seam — always 0 in v3.0.
+  firmSignalFactor: number;
+  similaritySignalFactor: number;
+  scoreVersion: "v3";
+  // 12mo case-judge mean dismissal rate (for judge_skew driver). Null when
+  // sample insufficient.
+  meanJudgeDismissal: number | null;
+  judgeSampleSize: number;
 };
 
 const ONE_DAY = 86400000;
@@ -230,5 +244,76 @@ export function computeRiskV2(
     topCategoryShare,
     topCircuit,
     topCircuitShare,
+  };
+}
+
+// --- v3 ---
+//
+// v3_score = clamp(0, 100, structural + momentum + concentration)
+//          * jurisdictionFactor * judgeFactor
+// Monotonicity: judgeFactor=1.0 (no profiles) → v3_score == v2_score.
+
+export function computeRiskV3(
+  cases: CaseLiteV3[],
+  judgeProfiles: Map<string, JudgeProfileLite>,
+  now: Date = new Date(),
+): RiskBreakdownV3 {
+  const v2 = computeRiskV2(cases, null, now);
+
+  // judge_multiplier over trailing-12mo cases
+  const trailing12mo = cases.filter((c) => {
+    if (!c.dateFiled) return false;
+    const age = now.getTime() - c.dateFiled.getTime();
+    return age >= 0 && age <= 365 * ONE_DAY;
+  });
+  const judgeFactor = aggregateJudgeMultiplier(
+    trailing12mo.map((c) => ({ judgeId: c.judgeId })),
+    judgeProfiles,
+  );
+
+  // judge_skew metadata — mean dismissal rate over judges with valid profiles
+  let dismissalSum = 0;
+  let dismissalN = 0;
+  for (const c of trailing12mo) {
+    if (!c.judgeId) continue;
+    const p = judgeProfiles.get(c.judgeId);
+    if (!p || p.dismissalRate == null || p.caseCount < 5) continue;
+    dismissalSum += p.dismissalRate;
+    dismissalN += 1;
+  }
+  const meanJudgeDismissal = dismissalN > 0 ? dismissalSum / dismissalN : null;
+
+  // composition: scale v2.score (already includes jurisdiction multiplier)
+  // by judgeFactor. Avoids re-rounding artifacts from re-deriving boosts
+  // out of the normalized factor fields. Monotonicity preserved: when
+  // judgeFactor=1.0, v3.score == v2.score exactly.
+  const score = Math.max(
+    0,
+    Math.min(100, Math.round(v2.score * judgeFactor)),
+  );
+
+  return {
+    score,
+    band: bandFor(score),
+    volumeFactor: v2.volumeFactor,
+    recencyFactor: v2.recencyFactor,
+    severityFactor: v2.severityFactor,
+    momentumFactor: v2.momentumFactor,
+    concentrationFactor: v2.concentrationFactor,
+    jurisdictionFactor: v2.jurisdictionFactor,
+    judgeFactor,
+    firmSignalFactor: 0,
+    similaritySignalFactor: 0,
+    scoreVersion: "v3",
+    caseCount: v2.caseCount,
+    recentCases: v2.recentCases,
+    recent30: v2.recent30,
+    baselineMonthly: v2.baselineMonthly,
+    topCategory: v2.topCategory,
+    topCategoryShare: v2.topCategoryShare,
+    topCircuit: v2.topCircuit,
+    topCircuitShare: v2.topCircuitShare,
+    meanJudgeDismissal,
+    judgeSampleSize: dismissalN,
   };
 }

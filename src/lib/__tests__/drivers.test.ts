@@ -77,6 +77,30 @@ describe("drivers", () => {
     expect(drivers.find((d) => d.type === "decay")).toBeDefined();
   });
 
+  it("fires judge_skew when mean dismissal < 0.25 and sample >= 3", () => {
+    const drivers = generateDrivers({
+      ...baseInput,
+      curr: { ...baseInput.curr, meanJudgeDismissal: 0.15, judgeSampleSize: 4 },
+    });
+    expect(drivers.find((d) => d.type === "judge_skew")).toBeDefined();
+  });
+
+  it("does not fire judge_skew with insufficient sample", () => {
+    const drivers = generateDrivers({
+      ...baseInput,
+      curr: { ...baseInput.curr, meanJudgeDismissal: 0.1, judgeSampleSize: 2 },
+    });
+    expect(drivers.find((d) => d.type === "judge_skew")).toBeUndefined();
+  });
+
+  it("does not fire judge_skew when mean dismissal >= 0.25", () => {
+    const drivers = generateDrivers({
+      ...baseInput,
+      curr: { ...baseInput.curr, meanJudgeDismissal: 0.30, judgeSampleSize: 5 },
+    });
+    expect(drivers.find((d) => d.type === "judge_skew")).toBeUndefined();
+  });
+
   it("caps at 4 drivers and sorts by weight desc", () => {
     const drivers = generateDrivers({
       curr: { score: 80, recent30: 6, baselineMonthly: 1, topCategory: "ip_patent", topCategoryShare: 0.7, topCircuit: "ca9", topCircuitShare: 0.5, jurisdictionFactor: 1.12 },
