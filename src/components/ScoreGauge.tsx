@@ -1,7 +1,25 @@
 import { bandColor } from "@/lib/utils";
 
+type Breakdown = {
+  volume: number;
+  recency: number;
+  severity: number;
+  momentum?: number;
+  concentration?: number;
+  jurisdiction?: number;
+};
+
 // Simple radial-style gauge built from SVG arcs. No external chart needed.
-export function ScoreGauge({ score, band }: { score: number; band: string }) {
+// When `breakdown` is provided, also renders a 6-bar component readout below.
+export function ScoreGauge({
+  score,
+  band,
+  breakdown,
+}: {
+  score: number;
+  band: string;
+  breakdown?: Breakdown;
+}) {
   const r = 56;
   const c = 2 * Math.PI * r;
   const fill = (score / 100) * c;
@@ -28,6 +46,27 @@ export function ScoreGauge({ score, band }: { score: number; band: string }) {
           <div className="text-[10px] uppercase tracking-widest text-muted mt-0.5">{band}</div>
         </div>
       </div>
+      {breakdown && (
+        <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-1 text-[10px] tabular text-muted">
+          {(
+            [
+              ["vol", breakdown.volume],
+              ["rec", breakdown.recency],
+              ["sev", breakdown.severity],
+              ["mom", breakdown.momentum],
+              ["cnc", breakdown.concentration],
+              ["jur", breakdown.jurisdiction],
+            ] as Array<[string, number | undefined]>
+          )
+            .filter((e): e is [string, number] => typeof e[1] === "number")
+            .map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between gap-1">
+                <span className="uppercase tracking-wider opacity-60">{k}</span>
+                <span className="font-medium opacity-90">{v.toFixed(2)}</span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
