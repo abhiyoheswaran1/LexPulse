@@ -53,13 +53,14 @@ async function main() {
   const rows = parseCsv(text);
   console.log(`loaded ${rows.length} sector mappings from CSV`);
 
-  // 3. For each row, find a Company by ticker (case-insensitive) and assign sectorKey.
+  // 3. For each row, find a Company by ticker (when present) or by name prefix.
   let assigned = 0;
   let missing = 0;
   for (const row of rows) {
-    let company = await prisma.company.findFirst({
-      where: { ticker: row.ticker },
-    });
+    const ticker = row.ticker.trim();
+    let company = ticker
+      ? await prisma.company.findFirst({ where: { ticker } })
+      : null;
     if (!company) {
       const head = row.name.split(/[,\s]/)[0].toLowerCase();
       company = await prisma.company.findFirst({
@@ -73,7 +74,7 @@ async function main() {
     await prisma.company.update({
       where: { id: company.id },
       data: {
-        ticker: row.ticker,
+        ...(ticker ? { ticker } : {}),
         naicsCode: row.naicsCode,
         sectorKey: row.sectorKey,
         sectorSource: "russell1000",
