@@ -1,0 +1,57 @@
+ticker,name,naicsCode,sectorKey
+AAPL,Apple Inc.,334220,information_technology
+MSFT,Microsoft Corporation,511210,information_technology
+GOOGL,Alphabet Inc.,519130,communication_services
+META,Meta Platforms Inc.,519130,communication_services
+NVDA,NVIDIA Corporation,334413,information_technology
+AMZN,Amazon.com Inc.,454110,consumer_discretionary
+TSLA,Tesla Inc.,336111,consumer_discretionary
+NFLX,Netflix Inc.,512110,communication_services
+DIS,The Walt Disney Company,512110,communication_services
+CMCSA,Comcast Corporation,517311,communication_services
+JPM,JPMorgan Chase & Co.,522110,financials
+BAC,Bank of America Corp.,522110,financials
+WFC,Wells Fargo & Company,522110,financials
+GS,The Goldman Sachs Group Inc.,523110,financials
+MS,Morgan Stanley,523110,financials
+BLK,BlackRock Inc.,523920,financials
+V,Visa Inc.,522320,financials
+MA,Mastercard Incorporated,522320,financials
+JNJ,Johnson & Johnson,325412,healthcare
+PFE,Pfizer Inc.,325412,healthcare
+MRK,Merck & Co. Inc.,325412,healthcare
+ABBV,AbbVie Inc.,325412,healthcare
+LLY,Eli Lilly and Company,325412,healthcare
+UNH,UnitedHealth Group Incorporated,524114,healthcare
+CVS,CVS Health Corporation,446110,healthcare
+ABT,Abbott Laboratories,339112,healthcare
+TMO,Thermo Fisher Scientific Inc.,334516,healthcare
+XOM,Exxon Mobil Corporation,211120,energy
+CVX,Chevron Corporation,211120,energy
+COP,ConocoPhillips,211120,energy
+SLB,Schlumberger Limited,213112,energy
+EOG,EOG Resources Inc.,211120,energy
+PG,The Procter & Gamble Company,325611,consumer_staples
+KO,The Coca-Cola Company,312111,consumer_staples
+PEP,PepsiCo Inc.,312111,consumer_staples
+WMT,Walmart Inc.,452311,consumer_staples
+COST,Costco Wholesale Corporation,452311,consumer_staples
+PM,Philip Morris International Inc.,312230,consumer_staples
+MO,Altria Group Inc.,312230,consumer_staples
+NEE,NextEra Energy Inc.,221112,utilities
+DUK,Duke Energy Corporation,221112,utilities
+SO,The Southern Company,221112,utilities
+D,Dominion Energy Inc.,221112,utilities
+BA,The Boeing Company,336411,industrials
+CAT,Caterpillar Inc.,333120,industrials
+HON,Honeywell International Inc.,334513,industrials
+GE,General Electric Company,335312,industrials
+UNP,Union Pacific Corporation,482111,industrials
+UPS,United Parcel Service Inc.,492110,industrials
+LMT,Lockheed Martin Corporation,336411,industrials
+SPG,Simon Property Group Inc.,531120,real_estate
+PLD,Prologis Inc.,531120,real_estate
+AMT,American Tower Corporation,517312,real_estate
+LIN,Linde plc,325120,materials
+DD,DuPont de Nemours Inc.,325211,materials
+NEM,Newmont Corporation,212220,materials
