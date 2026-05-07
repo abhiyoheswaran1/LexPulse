@@ -1,0 +1,149 @@
+// LexPulse — litigation intelligence schema.
+//
+// Design notes:
+// - Cases are the atomic court record (1 docket = 1 Case).
+// - Companies are the entity users care about. A Case has 0..N Companies via
+//   CompanyCaseLink. role = "plaintiff" | "defendant" | "other".
+// - RiskScore is materialized per-company per-snapshot. We keep history so we
+//   can show trends without recomputing on read.
+// - Event is an audit-style row. Today it captures "case_filed"; later it
+//   absorbs "motion", "ruling", "settlement" without schema churn.
+// - Alert is user-facing. It's denormalized so the alerts list query is cheap.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  // normalized name used for entity-resolution lookups (lowercase, no punct,
+  // no corp suffix). Unique because it's our merge key.
+  normKey     String   @unique
+  ticker      String?
+  jurisdiction String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  links       CompanyCaseLink[]
+  scores      RiskScore[]
+  alerts      Alert[]
+
+  @@index([name])
+  @@map("companies")
+}
+
+model Case {
+  id            String   @id @default(cuid())
+  // CourtListener docket id, when present
+  sourceId      String?  @unique
+  caseName      String
+  court         String?
+  docketNumber  String?
+  // YYYY-MM-DD of filing
+  dateFiled     DateTime?
+  dateTerminated DateTime?
+  // CourtListener's nature_of_suit code or human label. We map to a severity
+  // bucket in lib/risk.ts.
+  natureOfSuit  String?
+  cause         String?
+  judgeId       String?
+  judge         Judge?   @relation(fields: [judgeId], references: [id])
+
+  links         CompanyCaseLink[]
+  events        Event[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([dateFiled])
+  @@index([natureOfSuit])
+  @@map("cases")
+}
+
+model CompanyCaseLink {
+  id        String  @id @default(cuid())
+  companyId String
+  caseId   String
+  // "plaintiff" | "defendant" | "other"
+  role      String
+  // raw party string from the source — kept for debugging entity resolution
+  rawParty  String
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  caseRef   Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, caseId, role])
+  @@index([caseId])
+  @@map("company_case_link")
+}
+
+model Judge {
+  id     String @id @default(cuid())
+  name   String @unique
+  court  String?
+  cases  Case[]
+
+  @@map("judges")
+}
+
+model RiskScore {
+  id          String   @id @default(cuid())
+  companyId   String
+  // 0..100
+  score       Int
+  // band derived from score: low | moderate | elevated | high
+  band        String
+  // breakdown for UI tooltips & explainability
+  volumeFactor   Float
+  recencyFactor  Float
+  severityFactor Float
+  // total cases at time of snapshot
+  caseCount   Int
+  // cases filed in trailing 12 months
+  recentCases Int
+  computedAt  DateTime @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, computedAt])
+  @@map("risk_scores")
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  caseId    String
+  // "case_filed" | "case_terminated" | "motion" | "ruling" | "settlement"
+  type      String
+  occurredAt DateTime
+  payload   Json?
+
+  caseRef   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, occurredAt])
+  @@map("events")
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  companyId   String
+  // "new_case" | "case_spike" | "risk_jump"
+  type        String
+  severity    String   // info | warn | critical
+  title       String
+  body        String
+  // relevant case id(s) as JSON for easy linking from the UI
+  refs        Json?
+  createdAt   DateTime @default(now())
+  read        Boolean  @default(false)
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([companyId])
+  @@map("alerts")
+}

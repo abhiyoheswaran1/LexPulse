@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  background-color: hsl(220 18% 7%);
+  color: hsl(220 15% 92%);
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+.scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+.scrollbar::-webkit-scrollbar-thumb { background: hsl(220 12% 22%); border-radius: 4px; }
+.scrollbar::-webkit-scrollbar-track { background: transparent; }
