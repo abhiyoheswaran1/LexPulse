@@ -188,15 +188,31 @@ async function ingestBatch(rows: RawDocket[]) {
 
     const judgeId = d.assigned_to_str ? judgeIdByName.get(d.assigned_to_str.trim()) : null;
 
+    // Court ID normalization: prefer the standardized `court_id` (CourtListener
+    // canonical: "nysd", "cand", ...) over the display label `court` ("S.D.N.Y.").
+    // jurisdiction.ts and the v2 driver pipeline expect the canonical form.
+    // Fallback: if we only have a display label, lowercase it and strip dots —
+    // a best-effort normalization that won't help every label but at least
+    // makes "S.D.N.Y." → "sdny" rather than leaving it unmatched on case.
+    const rawCourt = d.court_id ?? d.court ?? null;
+    const courtNorm = rawCourt
+      ? rawCourt.toLowerCase().replace(/\./g, "").replace(/\s+/g, "")
+      : null;
+
     // Upsert by sourceId when we have one; otherwise create unconditionally.
+    // `wasCreated` controls whether we create the corresponding `case_filed`
+    // event — without this flag we'd duplicate the event on every re-ingest.
     let caseRow;
+    let wasCreated = false;
     if (sid) {
+      const existing = await prisma.case.findUnique({ where: { sourceId: sid }, select: { id: true } });
+      wasCreated = existing == null;
       caseRow = await prisma.case.upsert({
         where: { sourceId: sid },
         create: {
           sourceId: sid,
           caseName: d.case_name ?? "(unnamed)",
-          court: d.court ?? d.court_id ?? null,
+          court: courtNorm,
           docketNumber: d.docket_number ?? null,
           dateFiled,
           dateTerminated: dateTerm,
@@ -215,7 +231,7 @@ async function ingestBatch(rows: RawDocket[]) {
       caseRow = await prisma.case.create({
         data: {
           caseName: d.case_name ?? "(unnamed)",
-          court: d.court ?? d.court_id ?? null,
+          court: courtNorm,
           docketNumber: d.docket_number ?? null,
           dateFiled,
           dateTerminated: dateTerm,
@@ -224,10 +240,11 @@ async function ingestBatch(rows: RawDocket[]) {
           judgeId: judgeId ?? null,
         },
       });
+      wasCreated = true;
     }
 
-    // Filed event.
-    if (dateFiled) {
+    // Filed event — only on initial create. Re-ingest must be idempotent.
+    if (dateFiled && wasCreated) {
       await prisma.event.create({
         data: { caseId: caseRow.id, type: "case_filed", occurredAt: dateFiled },
       });

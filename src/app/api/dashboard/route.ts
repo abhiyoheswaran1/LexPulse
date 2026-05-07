@@ -35,9 +35,13 @@ export async function GET() {
 
   const trending = [...ranked].sort((a, b) => b.recentCases - a.recentCases).slice(0, 8);
 
-  // 7d movers: latest v2 snapshot per company with non-null delta7d.
+  // 7d movers: latest v2 snapshot per company with non-zero delta7d.
   const moverSnapshots = await prisma.riskScore.findMany({
-    where: { delta7d: { not: null }, scoreVersion: "v2" },
+    where: {
+      delta7d: { not: null },
+      NOT: { delta7d: 0 },
+      scoreVersion: "v2",
+    },
     orderBy: { computedAt: "desc" },
     take: 1000,
     include: { company: { select: { id: true, name: true, ticker: true } } },

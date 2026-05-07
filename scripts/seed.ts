@@ -50,7 +50,9 @@ const NATURES = [
   "Tort",
 ];
 
-const COURTS = ["S.D.N.Y.", "N.D. Cal.", "D. Del.", "C.D. Cal.", "E.D. Tex.", "D.N.J."];
+// CourtListener-canonical IDs (lowercase, no dots) so the ingest pipeline's
+// jurisdiction lookups land cleanly. nysd=S.D.N.Y., cand=N.D. Cal., etc.
+const COURTS = ["nysd", "cand", "ded", "cacd", "txed", "njd", "ca9", "ca2"];
 const JUDGES = ["Hon. M. Reyes", "Hon. P. Okafor", "Hon. R. Lin", "Hon. S. Chen", "Hon. L. Patel", null];
 
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -81,11 +83,12 @@ function generate(): Docket[] {
         ? pick(["Securities Fraud", "Antitrust", "Consumer Fraud", "Products Liability"])
         : pick(NATURES);
       const isPlaintiff = Math.random() < 0.2; // most cases against the company
+      const court = pick(COURTS);
       out.push({
         id: id++,
         case_name: `${isPlaintiff ? co.replace(/[,.]/g, "") : "Doe et al."} v. ${isPlaintiff ? "Doe et al." : co.replace(/[,.]/g, "")}`,
         docket_number: `1:${24 - Math.floor(Math.random() * 3)}-cv-${String(1000 + Math.floor(Math.random() * 9000))}`,
-        court: pick(COURTS),
+        court,
         date_filed: dateFiled,
         date_terminated: Math.random() < 0.3 ? randDate(0, Math.max(1, ((Date.now() - new Date(dateFiled).getTime()) / 86400000) - 1)) : null,
         nature_of_suit: nature,

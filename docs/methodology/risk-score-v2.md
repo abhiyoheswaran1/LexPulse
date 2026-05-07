@@ -24,7 +24,7 @@ Each scored entity (`Company`) receives a snapshot containing:
 ```
 v2_score = clamp(0, 100,
             structural_score                       // v1 base
-          + momentum_boost                         // -10 .. +20
+          + momentum_boost                         // -10 .. +10
           + concentration_bonus                    // 0 .. +10
         ) * jurisdiction_multiplier                // 0.85 .. 1.15
 ```
@@ -42,17 +42,17 @@ v2_score = clamp(0, 100,
 ### 3.2 momentum_boost
 
 ```
-recent_30   = cases filed in trailing 30 days
-recent_12mo = cases filed in trailing 365 days
+recent_30   = cases filed in trailing 30 days (skipping future-dated entries)
+recent_12mo = cases filed in trailing 365 days (skipping future-dated entries)
 baseline    = max(0.5, recent_12mo / 12)
 momentum    = recent_30 / baseline
 boost       = recent_12mo == 0 ? 0
-                              : clamp(-10, +20, 10 · tanh(momentum − 1))
+                              : clamp(-10, +10, 10 · tanh(momentum − 1))
 ```
 
-The 0.5 floor on `baseline` prevents amplification when activity is near zero. The `recent_12mo == 0` short-circuit makes momentum truly neutral for dormant companies (no decay penalty for entities that have always been quiet — the decay signal should fire only when *prior* activity has slowed).
+`tanh` saturates near ±1, so the practical range of `10 · tanh(momentum − 1)` is symmetric `[-10, +10]`. The 0.5 floor on `baseline` prevents amplification when activity is near zero. The `recent_12mo == 0` short-circuit makes momentum truly neutral for dormant companies (no decay penalty for entities that have always been quiet — the decay signal should fire only when *prior* activity has slowed).
 
-Worked example: company with `recent_30 = 6` and `recent_12mo = 12` → baseline = 1.0, momentum = 6.0, boost = 10 · tanh(5) ≈ +10. Hard-capped at +20 for runaway momentum.
+Worked example: company with `recent_30 = 6` and `recent_12mo = 12` → baseline = 1.0, momentum = 6.0, boost = 10 · tanh(5) ≈ +10 (the hard cap).
 
 ### 3.3 concentration_bonus
 

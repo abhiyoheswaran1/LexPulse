@@ -27,7 +27,7 @@ const DISTRICT_TO_CIRCUIT: Record<string, string> = {
   mdd: "ca4", nced: "ca4", ncmd: "ca4", ncwd: "ca4", scd: "ca4",
   vaed: "ca4", vawd: "ca4", wvnd: "ca4", wvsd: "ca4",
   // 5th Circuit
-  laed: "ca5", lamd: "ca5", lawd: "ca5", miassd: "ca5", msnd: "ca5",
+  laed: "ca5", lamd: "ca5", lawd: "ca5", mssd: "ca5", msnd: "ca5",
   txed: "ca5", txnd: "ca5", txsd: "ca5", txwd: "ca5",
   // 6th Circuit
   kyed: "ca6", kywd: "ca6", mied: "ca6", miwd: "ca6", ohnd: "ca6",

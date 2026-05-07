@@ -23,7 +23,11 @@ async function getData() {
     }),
     Promise.all([prisma.company.count(), prisma.case.count(), prisma.alert.count()]),
     prisma.riskScore.findMany({
-      where: { delta7d: { not: null }, scoreVersion: "v2" },
+      where: {
+        delta7d: { not: null },
+        NOT: { delta7d: 0 },
+        scoreVersion: "v2",
+      },
       orderBy: { computedAt: "desc" },
       take: 1000,
       include: { company: { select: { id: true, name: true, ticker: true } } },

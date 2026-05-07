@@ -126,6 +126,10 @@ model RiskScore {
   scoreVersion         String   @default("v1")
   // drivers (denormalized JSON for cheap reads): array of {label, weight, type, evidence}
   drivers              Json?
+  // raw snapshot stats — used by next-run drivers (e.g. dormant_to_active needs
+  // prior recent30) and by replay/audit. Shape: { recent30, baselineMonthly,
+  // topCategory, topCategoryShare, topCircuit, topCircuitShare }.
+  rawStats             Json?
   // change deltas (precomputed at write); null if no prior snapshot in window
   delta7d              Int?
   delta30d             Int?

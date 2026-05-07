@@ -95,4 +95,48 @@ describe("computeRiskV2", () => {
     expect(v2.score).toBeLessThanOrEqual(100);
     expect(v2.score).toBeGreaterThanOrEqual(0);
   });
+
+  it("future-dated cases are skipped (do not inflate recent30 / recent12mo)", () => {
+    const cases: CaseLiteV2[] = [
+      { dateFiled: new Date(now.getTime() + 10 * oneDay), natureOfSuit: "110", court: null },
+      { dateFiled: new Date(now.getTime() + 100 * oneDay), natureOfSuit: "110", court: null },
+    ];
+    const v2 = computeRiskV2(cases, null, now);
+    expect(v2.recent30).toBe(0);
+    // baseline floored to 0.5 since recent12mo = 0
+    expect(v2.baselineMonthly).toBe(0.5);
+    expect(v2.momentumFactor).toBe(0.5); // neutral (boost 0 → factor 0.5)
+  });
+
+  it("topCircuit aggregates by circuit, not raw court id", () => {
+    // Three districts all in 9th Circuit (cand, cacd, casd).
+    const cases: CaseLiteV2[] = [
+      { dateFiled: new Date(now.getTime() - 10 * oneDay), natureOfSuit: "110", court: "cand" },
+      { dateFiled: new Date(now.getTime() - 20 * oneDay), natureOfSuit: "110", court: "cacd" },
+      { dateFiled: new Date(now.getTime() - 30 * oneDay), natureOfSuit: "110", court: "casd" },
+    ];
+    const v2 = computeRiskV2(cases, null, now);
+    expect(v2.topCircuit).toBe("ca9");
+    expect(v2.topCircuitShare).toBe(1.0);
+  });
+
+  it("momentum boost cap is symmetric [-10, +10]; factor in [0, 1]", () => {
+    // Massive recent30 with tiny baseline → tanh saturates at +1 → boost +10
+    const cases: CaseLiteV2[] = Array.from({ length: 50 }, (_, i) => ({
+      dateFiled: new Date(now.getTime() - i * (oneDay / 2)), // 25 in last 30 days
+      natureOfSuit: "110",
+      court: null,
+    }));
+    const v2 = computeRiskV2(cases, null, now);
+    expect(v2.momentumFactor).toBeGreaterThan(0.9);
+    expect(v2.momentumFactor).toBeLessThanOrEqual(1.0);
+  });
+
+  it("concentrationFactor is 0 for single-case companies (avoids 100% concentration on 1 case)", () => {
+    const cases: CaseLiteV2[] = [
+      { dateFiled: new Date(now.getTime() - 30 * oneDay), natureOfSuit: "850", court: null },
+    ];
+    const v2 = computeRiskV2(cases, null, now);
+    expect(v2.concentrationFactor).toBe(0);
+  });
 });

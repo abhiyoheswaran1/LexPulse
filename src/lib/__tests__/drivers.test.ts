@@ -38,19 +38,26 @@ describe("drivers", () => {
     expect(drivers.find((d) => d.type === "severe_filing")).toBeDefined();
   });
 
-  it("fires category_concentration when one severe category dominates", () => {
+  it("fires category_concentration when one severe category dominates AND >= 3 cases", () => {
     const drivers = generateDrivers({
       ...baseInput,
-      curr: { ...baseInput.curr, topCategory: "employment_labor", topCategoryShare: 0.7 },
+      curr: { ...baseInput.curr, topCategory: "employment_labor", topCategoryShare: 0.7, cat12moTotal: 5 },
     });
     // employment severity is 0.5, threshold is 0.6 — should NOT fire
     expect(drivers.find((d) => d.type === "category_concentration")).toBeUndefined();
 
     const fires = generateDrivers({
       ...baseInput,
-      curr: { ...baseInput.curr, topCategory: "ip_patent", topCategoryShare: 0.7 },
+      curr: { ...baseInput.curr, topCategory: "ip_patent", topCategoryShare: 0.7, cat12moTotal: 5 },
     });
     expect(fires.find((d) => d.type === "category_concentration")).toBeDefined();
+
+    // Single-case "concentration" must NOT fire (cat12moTotal default 0/missing)
+    const single = generateDrivers({
+      ...baseInput,
+      curr: { ...baseInput.curr, topCategory: "ip_patent", topCategoryShare: 1.0 },
+    });
+    expect(single.find((d) => d.type === "category_concentration")).toBeUndefined();
   });
 
   it("fires federal_circuit_focus", () => {

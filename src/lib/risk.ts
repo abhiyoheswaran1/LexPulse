@@ -9,7 +9,7 @@
 // when momentum=0, concentration=0, multiplier=1, v2_score == v1_score.
 
 import { categorize, severityForNos, type NosCategory } from "./case-types";
-import { courtWeight } from "./jurisdiction";
+import { courtCircuit, courtWeight } from "./jurisdiction";
 
 // --- v1 (preserved, unchanged behavior) ---
 
@@ -57,6 +57,7 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
   for (const c of cases) {
     if (!c.dateFiled) continue;
     const age = now.getTime() - c.dateFiled.getTime();
+    if (age < 0) continue;                  // skip future-dated (data error)
     if (age <= yearMs) recent12++;
     else if (age <= 2 * yearMs) recent24++;
   }
@@ -113,6 +114,7 @@ export function computeRiskV2(
   for (const c of cases) {
     if (!c.dateFiled) continue;
     const age = now.getTime() - c.dateFiled.getTime();
+    if (age < 0) continue;                  // skip future-dated (data error)
     if (age <= 30 * ONE_DAY) recent30++;
     if (age <= 365 * ONE_DAY) recent12mo++;
   }
@@ -120,17 +122,20 @@ export function computeRiskV2(
   const momentum = recent30 / baselineMonthly;
   // Dormant companies (no activity in trailing 12 months) get neutral momentum,
   // not negative — preserves the v1↔v2 monotonicity guarantee for dormant cos.
+  // Boost range is symmetric [-10, +10] from 10·tanh(...); methodology doc
+  // documents this honest range (the earlier "+20" cap was unreachable).
   const momentumBoostRaw = recent12mo === 0 ? 0 : 10 * Math.tanh(momentum - 1);
-  const momentumBoost = Math.max(-10, Math.min(20, momentumBoostRaw));
-  // Store normalized 0..1 for UI/persistence; -10..+20 → 0..1
-  const momentumFactor = Math.max(0, Math.min(1, (momentumBoost + 10) / 30));
+  const momentumBoost = Math.max(-10, Math.min(10, momentumBoostRaw));
+  // Stored as 0..1 (boost -10 → 0, boost 0 → 0.5, boost +10 → 1).
+  const momentumFactor = Math.max(0, Math.min(1, (momentumBoost + 10) / 20));
 
   // --- concentration: HHI over 12mo cases by category ---
   const cat12mo: Partial<Record<NosCategory, number>> = {};
   let cat12moTotal = 0;
   for (const c of cases) {
     if (!c.dateFiled) continue;
-    if (now.getTime() - c.dateFiled.getTime() > 365 * ONE_DAY) continue;
+    const age = now.getTime() - c.dateFiled.getTime();
+    if (age < 0 || age > 365 * ONE_DAY) continue;
     const k = categorize(c.natureOfSuit);
     cat12mo[k] = (cat12mo[k] ?? 0) + 1;
     cat12moTotal++;
@@ -152,18 +157,18 @@ export function computeRiskV2(
   }
   // Concentration math:
   //   N == 0 → no 12mo activity, factor and bonus are 0.
-  //   N == 1 → fully concentrated by definition (one category). Bonus only
-  //            fires if there's enough activity (>= 3 cases) to be meaningful.
+  //   N == 1, cases < 3 → trivial concentration; factor and bonus both 0.
+  //   N == 1, cases >= 3 → fully concentrated; factor 1, bonus 10.
   //   N >= 2 → normalized HHI deviation from even distribution.
   const HHIFloor = N > 0 ? 1 / N : 1;
   let concentrationFactor: number;
   let concentrationBonus: number;
-  if (N === 0) {
+  if (N === 0 || (N === 1 && cat12moTotal < 3)) {
     concentrationFactor = 0;
     concentrationBonus = 0;
   } else if (N === 1) {
     concentrationFactor = 1;
-    concentrationBonus = cat12moTotal >= 3 ? 10 : 0;
+    concentrationBonus = 10;
   } else {
     const norm = (HHI - HHIFloor) / (1 - HHIFloor);
     concentrationFactor = Math.max(0, Math.min(1, norm));
@@ -171,18 +176,22 @@ export function computeRiskV2(
   }
 
   // --- jurisdiction: weighted average over 12mo cases ---
+  // topCircuit aggregates by *circuit* (e.g. ca9), not by raw district id —
+  // so all 9th Circuit districts collapse into "ca9" for the driver signal.
   let jurNum = 0;
   let jurDen = 0;
   const circuitCount: Record<string, number> = {};
   let circuitTotal = 0;
   for (const c of cases) {
     if (!c.dateFiled) continue;
-    if (now.getTime() - c.dateFiled.getTime() > 365 * ONE_DAY) continue;
+    const age = now.getTime() - c.dateFiled.getTime();
+    if (age < 0 || age > 365 * ONE_DAY) continue;
     const w = courtWeight(c.court);
     jurNum += w;
     jurDen += 1;
-    if (c.court) {
-      circuitCount[c.court] = (circuitCount[c.court] ?? 0) + 1;
+    const circuitKey = courtCircuit(c.court) ?? c.court?.toLowerCase() ?? null;
+    if (circuitKey) {
+      circuitCount[circuitKey] = (circuitCount[circuitKey] ?? 0) + 1;
       circuitTotal++;
     }
   }
