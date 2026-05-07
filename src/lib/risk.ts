@@ -1,50 +1,17 @@
-// Risk scoring (v1 heuristic).
+// Risk scoring.
 //
-// Score ∈ [0, 100] = 35*volume + 35*recency + 30*severity, all factors in [0,1].
-//
-// volumeFactor: log-scaled count. 0 cases → 0. ~50 cases → ~1.
-// recencyFactor: share of cases in trailing 12 months, with a soft floor for
-//                trailing 24 months so a company with a single old case still
-//                shows non-zero.
-// severityFactor: weighted average of nature-of-suit weights.
-//
-// Weights are deliberately tunable constants in this file, not hidden in a
-// model. The selling point of LexPulse v1 is *legible* risk, not black-box.
+// v1 (legacy, retained for replay): score = 35*volume + 35*recency + 30*severity.
+// v2 (current):
+//   v2_score = clamp(0, 100,
+//                  structural_score + momentum_boost + concentration_bonus
+//              ) * jurisdiction_multiplier
+// where structural_score is the v1 calculation. Monotonicity guarantee:
+// when momentum=0, concentration=0, multiplier=1, v2_score == v1_score.
 
-export const SEVERITY_WEIGHTS: Record<string, number> = {
-  // High: investor / regulatory / antitrust
-  securities: 0.95,
-  antitrust: 0.9,
-  rico: 0.9,
-  "consumer fraud": 0.8,
-  "false claims act": 0.85,
-  // Mid-high: IP, employment class actions, products liability
-  patent: 0.7,
-  trademark: 0.55,
-  copyright: 0.55,
-  "products liability": 0.7,
-  "employment - class": 0.7,
-  // Mid: civil rights, environmental, ERISA
-  "civil rights": 0.5,
-  environmental: 0.6,
-  erisa: 0.55,
-  // Lower: contract, real property, tax, generic torts
-  contract: 0.35,
-  "real property": 0.25,
-  tax: 0.3,
-  tort: 0.4,
-  // Default for unmapped or null
-  other: 0.3,
-};
+import { categorize, severityForNos, type NosCategory } from "./case-types";
+import { courtWeight } from "./jurisdiction";
 
-export function severityFor(natureOfSuit?: string | null): number {
-  if (!natureOfSuit) return SEVERITY_WEIGHTS.other;
-  const k = natureOfSuit.toLowerCase();
-  for (const [needle, w] of Object.entries(SEVERITY_WEIGHTS)) {
-    if (k.includes(needle)) return w;
-  }
-  return SEVERITY_WEIGHTS.other;
-}
+// --- v1 (preserved, unchanged behavior) ---
 
 export type RiskBand = "low" | "moderate" | "elevated" | "high";
 
@@ -83,11 +50,7 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
       recentCases: 0,
     };
   }
-
-  // Volume: log-scaled, saturates around ~50 cases.
   const volumeFactor = Math.min(1, Math.log10(1 + total) / Math.log10(1 + 50));
-
-  // Recency: share in trailing 12 months, plus half-credit for cases in 13–24.
   const yearMs = 365 * 24 * 60 * 60 * 1000;
   let recent12 = 0;
   let recent24 = 0;
@@ -98,16 +61,11 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
     else if (age <= 2 * yearMs) recent24++;
   }
   const recencyFactor = Math.min(1, (recent12 + 0.5 * recent24) / total);
-
-  // Severity: weighted average.
-  const severityFactor =
-    cases.reduce((acc, c) => acc + severityFor(c.natureOfSuit), 0) / total;
-
+  const severityFactor = cases.reduce((acc, c) => acc + severityForNos(c.natureOfSuit), 0) / total;
   const score = Math.max(
     0,
     Math.min(100, Math.round(100 * (0.35 * volumeFactor + 0.35 * recencyFactor + 0.3 * severityFactor))),
   );
-
   return {
     score,
     band: bandFor(score),
@@ -116,5 +74,152 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
     severityFactor,
     caseCount: total,
     recentCases: recent12,
+  };
+}
+
+// --- v2 ---
+
+export type CaseLiteV2 = CaseLite & { court: string | null };
+
+export type RiskBreakdownV2 = RiskBreakdown & {
+  momentumFactor: number;
+  concentrationFactor: number;
+  jurisdictionFactor: number;
+  scoreVersion: "v2";
+  // raw stats useful for drivers + benchmarks (not persisted directly):
+  recent30: number;
+  baselineMonthly: number;
+  topCategory: NosCategory | null;
+  topCategoryShare: number;
+  topCircuit: string | null;
+  topCircuitShare: number;
+};
+
+const ONE_DAY = 86400000;
+
+export function computeRiskV2(
+  cases: CaseLiteV2[],
+  _prev: RiskBreakdownV2 | null,
+  now: Date = new Date(),
+): RiskBreakdownV2 {
+  const v1 = computeRisk(
+    cases.map((c) => ({ dateFiled: c.dateFiled, natureOfSuit: c.natureOfSuit })),
+    now,
+  );
+
+  // --- momentum ---
+  let recent30 = 0;
+  let recent12mo = 0;
+  for (const c of cases) {
+    if (!c.dateFiled) continue;
+    const age = now.getTime() - c.dateFiled.getTime();
+    if (age <= 30 * ONE_DAY) recent30++;
+    if (age <= 365 * ONE_DAY) recent12mo++;
+  }
+  const baselineMonthly = Math.max(0.5, recent12mo / 12);
+  const momentum = recent30 / baselineMonthly;
+  // Dormant companies (no activity in trailing 12 months) get neutral momentum,
+  // not negative — preserves the v1↔v2 monotonicity guarantee for dormant cos.
+  const momentumBoostRaw = recent12mo === 0 ? 0 : 10 * Math.tanh(momentum - 1);
+  const momentumBoost = Math.max(-10, Math.min(20, momentumBoostRaw));
+  // Store normalized 0..1 for UI/persistence; -10..+20 → 0..1
+  const momentumFactor = Math.max(0, Math.min(1, (momentumBoost + 10) / 30));
+
+  // --- concentration: HHI over 12mo cases by category ---
+  const cat12mo: Partial<Record<NosCategory, number>> = {};
+  let cat12moTotal = 0;
+  for (const c of cases) {
+    if (!c.dateFiled) continue;
+    if (now.getTime() - c.dateFiled.getTime() > 365 * ONE_DAY) continue;
+    const k = categorize(c.natureOfSuit);
+    cat12mo[k] = (cat12mo[k] ?? 0) + 1;
+    cat12moTotal++;
+  }
+  const cats = Object.entries(cat12mo).filter(([, n]) => (n ?? 0) > 0) as Array<[NosCategory, number]>;
+  const N = cats.length;
+  let topCategory: NosCategory | null = null;
+  let topCategoryShare = 0;
+  let HHI = 0;
+  if (cat12moTotal > 0 && N > 0) {
+    for (const [k, n] of cats) {
+      const p = n / cat12moTotal;
+      HHI += p * p;
+      if (p > topCategoryShare) {
+        topCategoryShare = p;
+        topCategory = k;
+      }
+    }
+  }
+  // Concentration math:
+  //   N == 0 → no 12mo activity, factor and bonus are 0.
+  //   N == 1 → fully concentrated by definition (one category). Bonus only
+  //            fires if there's enough activity (>= 3 cases) to be meaningful.
+  //   N >= 2 → normalized HHI deviation from even distribution.
+  const HHIFloor = N > 0 ? 1 / N : 1;
+  let concentrationFactor: number;
+  let concentrationBonus: number;
+  if (N === 0) {
+    concentrationFactor = 0;
+    concentrationBonus = 0;
+  } else if (N === 1) {
+    concentrationFactor = 1;
+    concentrationBonus = cat12moTotal >= 3 ? 10 : 0;
+  } else {
+    const norm = (HHI - HHIFloor) / (1 - HHIFloor);
+    concentrationFactor = Math.max(0, Math.min(1, norm));
+    concentrationBonus = Math.max(0, Math.min(10, 10 * norm));
+  }
+
+  // --- jurisdiction: weighted average over 12mo cases ---
+  let jurNum = 0;
+  let jurDen = 0;
+  const circuitCount: Record<string, number> = {};
+  let circuitTotal = 0;
+  for (const c of cases) {
+    if (!c.dateFiled) continue;
+    if (now.getTime() - c.dateFiled.getTime() > 365 * ONE_DAY) continue;
+    const w = courtWeight(c.court);
+    jurNum += w;
+    jurDen += 1;
+    if (c.court) {
+      circuitCount[c.court] = (circuitCount[c.court] ?? 0) + 1;
+      circuitTotal++;
+    }
+  }
+  const jurisdictionFactor = jurDen > 0 ? jurNum / jurDen : 1.0;
+
+  let topCircuit: string | null = null;
+  let topCircuitShare = 0;
+  for (const [k, n] of Object.entries(circuitCount)) {
+    const p = circuitTotal > 0 ? n / circuitTotal : 0;
+    if (p > topCircuitShare) {
+      topCircuitShare = p;
+      topCircuit = k;
+    }
+  }
+
+  // --- composition ---
+  const adjusted = v1.score + momentumBoost + concentrationBonus;
+  const clampedAdjusted = Math.max(0, Math.min(100, adjusted));
+  const score = Math.max(0, Math.min(100, Math.round(clampedAdjusted * jurisdictionFactor)));
+
+  return {
+    score,
+    band: bandFor(score),
+    volumeFactor: v1.volumeFactor,
+    recencyFactor: v1.recencyFactor,
+    severityFactor: v1.severityFactor,
+    momentumFactor,
+    concentrationFactor,
+    jurisdictionFactor,
+    scoreVersion: "v2",
+    caseCount: v1.caseCount,
+    recentCases: v1.recentCases,
+    recent30,
+    baselineMonthly,
+    topCategory,
+    topCategoryShare,
+    topCircuit,
+    topCircuitShare,
   };
 }
