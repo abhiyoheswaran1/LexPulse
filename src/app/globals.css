@@ -7,18 +7,15 @@
 }
 
 html, body {
-  background-color: hsl(35 8% 11%);
+  background-color: hsl(35 8% 12%);
   color: hsl(40 14% 94%);
 }
 
-/* Subtle ambient depth — amber wash from one corner, magenta from the
-   opposite. Alpha kept low enough that the gradients read as atmosphere
-   rather than colored regions. */
-body {
-  background-image:
-    radial-gradient(60vw 50vh at 80% -10%, hsl(38 88% 58% / 0.04), transparent 70%),
-    radial-gradient(40vw 40vh at 0% 100%, hsl(330 60% 60% / 0.025), transparent 70%);
-}
+/* No body gradient. Earlier passes had amber/magenta radial washes for
+   ambient depth; impeccable kept reading the gradient color stops as a
+   colored bg and flagging any text rendered over those regions. The
+   surface reads cleanly without them. Depth comes from the panel
+   hierarchy + border contrast. */
 
 /* Tabular numbers route through JetBrains Mono so financial-style numbers
    read distinctively from prose. Kept as a utility so we apply it

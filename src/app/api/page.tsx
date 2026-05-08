@@ -253,7 +253,7 @@ function Endpoint({
       title={path}
       subtitle={description}
       right={
-        <span className="font-mono text-[11px] tracking-[0.16em] uppercase rounded-md border border-accent/40 bg-accent/10 text-accent px-2 py-0.5">
+        <span className="font-mono text-[11px] tracking-[0.16em] uppercase rounded-md border border-accent/40 bg-panel2 text-accent px-2 py-0.5">
           {method}
         </span>
       }
