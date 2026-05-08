@@ -7,7 +7,7 @@ import { CaseTimeline } from "@/components/CaseTimeline";
 import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 import { formatDate, formatRelative, cn } from "@/lib/utils";
-import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -178,7 +178,10 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </Panel>
       </div>
 
-      <Panel title="Cases" subtitle={`${cases.length.toLocaleString()} dockets, most recent first`}>
+      <Panel
+        title="Cases"
+        subtitle={`${cases.length.toLocaleString()} dockets, most recent first · click any row to view on CourtListener`}
+      >
         {cases.length === 0 ? (
           <div className="text-sm text-muted">No cases.</div>
         ) : (
@@ -191,34 +194,78 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                   <th className="text-left font-normal px-4 py-2.5">Nature</th>
                   <th className="text-left font-normal px-4 py-2.5">Role</th>
                   <th className="text-right font-normal px-4 py-2.5">Filed</th>
+                  <th className="w-10" aria-label="external link" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {cases.slice(0, 100).map((c) => (
-                  <tr key={c.id} className="hover:bg-panel2/40 transition">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-fg/90 truncate max-w-[420px]">{c.caseName}</div>
-                      <div className="text-xs text-muted tabular mt-0.5">{c.docketNumber}</div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted tabular">{c.court ?? "—"}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {c.natureOfSuit ? (
-                        <span className="rounded-md border border-border bg-panel2 px-2 py-0.5 text-xs">
-                          {c.natureOfSuit}
+                {cases.slice(0, 100).map((c) => {
+                  const courtListenerUrl = c.sourceId
+                    ? `https://www.courtlistener.com/docket/${c.sourceId}/`
+                    : null;
+                  const RowTag = courtListenerUrl ? "a" : "tr";
+                  // Render the row as an anchor when we have a source id;
+                  // wrap in <tr> for layout via display:contents-equivalent.
+                  return (
+                    <tr
+                      key={c.id}
+                      className={
+                        courtListenerUrl
+                          ? "group hover:bg-panel2/60 transition cursor-pointer"
+                          : "hover:bg-panel2/40 transition"
+                      }
+                    >
+                      <td className="px-4 py-3">
+                        {courtListenerUrl ? (
+                          <Link
+                            href={courtListenerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block group-hover:text-accent transition"
+                          >
+                            <div className="font-medium text-fg/90 truncate max-w-[420px] group-hover:text-accent">
+                              {c.caseName}
+                            </div>
+                            <div className="text-xs text-muted tabular mt-0.5">{c.docketNumber}</div>
+                          </Link>
+                        ) : (
+                          <>
+                            <div className="font-medium text-fg/90 truncate max-w-[420px]">{c.caseName}</div>
+                            <div className="text-xs text-muted tabular mt-0.5">{c.docketNumber}</div>
+                          </>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted tabular">{c.court ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {c.natureOfSuit ? (
+                          <span className="rounded-md border border-border bg-panel2 px-2 py-0.5 text-xs">
+                            {c.natureOfSuit}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <span className="inline-flex items-center gap-1.5 text-muted">
+                          {c.role === "defendant" ? <Gavel className="size-3" /> : <Scale className="size-3" />}
+                          {c.role}
                         </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      <span className="inline-flex items-center gap-1.5 text-muted">
-                        {c.role === "defendant" ? <Gavel className="size-3" /> : <Scale className="size-3" />}
-                        {c.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted tabular text-right">{formatDate(c.dateFiled)}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted tabular text-right">{formatDate(c.dateFiled)}</td>
+                      <td className="px-3 py-3 text-muted/60 group-hover:text-accent transition">
+                        {courtListenerUrl && (
+                          <Link
+                            href={courtListenerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open on CourtListener"
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {cases.length > 100 && (

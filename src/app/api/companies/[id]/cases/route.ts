@@ -10,6 +10,7 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
 
   const cases = links.map((l) => ({
     id: l.caseRef.id,
+    sourceId: l.caseRef.sourceId,
     caseName: l.caseRef.caseName,
     court: l.caseRef.court,
     docketNumber: l.caseRef.docketNumber,
@@ -19,6 +20,9 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
     cause: l.caseRef.cause,
     judge: l.caseRef.judge?.name ?? null,
     role: l.role,
+    courtListenerUrl: l.caseRef.sourceId
+      ? `https://www.courtlistener.com/docket/${l.caseRef.sourceId}/`
+      : null,
   }));
 
   return NextResponse.json({ cases });
