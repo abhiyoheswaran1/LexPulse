@@ -11,23 +11,27 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Background sits just shy of black with a brand-hued tint —
-        // pure #000 reads as harsh on financial-dashboard surfaces, but
-        // we don't want it visibly blue either. Slight neutral warmth.
-        bg: "hsl(225 16% 8%)",
-        panel: "hsl(225 13% 11%)",
-        panel2: "hsl(225 11% 14%)",
-        border: "hsl(225 10% 19%)",
-        muted: "hsl(225 8% 64%)",
-        fg: "hsl(225 14% 95%)",
-        // Accent: deliberately a sophisticated teal, not the neon cyan that
-        // immediately reads as "AI-generated SaaS". Lower saturation, mid
-        // value — distinct from band colors (ok green, warn amber, bad red).
-        accent: "hsl(178 55% 50%)",
-        ok: "hsl(155 55% 50%)",
-        warn: "hsl(42 80% 58%)",
-        bad: "hsl(0 72% 62%)",
-        elev: "hsl(28 80% 58%)",
+        // Warm-neutral dark background with the slightest hue. Stays out of
+        // both "cyan terminal" and "purple AI gradient" stylistic clichés.
+        bg: "hsl(35 8% 9%)",
+        panel: "hsl(35 7% 12%)",
+        panel2: "hsl(35 6% 15%)",
+        border: "hsl(35 6% 21%)",
+        muted: "hsl(35 8% 64%)",
+        fg: "hsl(40 14% 94%)",
+        // Accent: amber. Bloomberg-terminal lineage. Distinctive against
+        // dark warm-neutrals, doesn't read as AI cyan or AI purple. Mid
+        // value, slightly desaturated for sophistication.
+        accent: "hsl(38 88% 58%)",
+        // Bands stay semantic. ok/warn/bad/elev each in a clearly distinct
+        // hue from accent and from each other.
+        ok: "hsl(150 50% 50%)",
+        warn: "hsl(50 80% 58%)",
+        bad: "hsl(0 72% 60%)",
+        // elev (medium-risk band color) shifts toward magenta to give the
+        // band ramp a clear orange→amber→magenta progression — keeps amber
+        // (accent) visually separate from the warning ramp.
+        elev: "hsl(330 60% 60%)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
