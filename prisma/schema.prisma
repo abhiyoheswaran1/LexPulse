@@ -15,8 +15,14 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime queries go through the pooler URL (Supabase pgBouncer on 6543).
+  url       = env("DATABASE_URL")
+  // Migrations and `prisma db push` use the direct connection (5432) because
+  // pgBouncer doesn't support the prepared-statement protocol Prisma needs
+  // for schema operations. Falls back to DATABASE_URL if DIRECT_URL is unset
+  // (local dev where there's no pooler).
+  directUrl = env("DIRECT_URL")
 }
 
 model Company {

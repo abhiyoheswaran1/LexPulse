@@ -11,6 +11,10 @@
 // brace-counting parser — adequate for CourtListener exports, which are flat
 // arrays of objects.
 //
+// Round-trip discipline: each batch issues O(1) round-trips per entity type
+// (createMany + findMany), not O(N). At 100ms latency to a managed Postgres,
+// 500-docket batches finish in ~1s of network time instead of ~250s.
+//
 // Entity resolution happens inline: each party string runs through
 // normalizeCompanyName -> upsert by normKey -> link to case.
 
@@ -48,6 +52,8 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--limit") out.limit = Number(argv[++i]);
     else if (a === "--batch") out.batch = Number(argv[++i]);
   }
+  if (out.limit !== undefined && Number.isNaN(out.limit)) out.limit = undefined;
+  if (Number.isNaN(out.batch) || out.batch <= 0) out.batch = 500;
   return out;
 }
 
@@ -126,148 +132,200 @@ async function* iterate(path: string): AsyncGenerator<RawDocket> {
   yield* iterateJsonl(path);
 }
 
-type CompanyAccum = { display: string; key: string };
+function normalizeCourt(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  return raw.toLowerCase().replace(/\./g, "").replace(/\s+/g, "") || null;
+}
+
+function rolePartyFromType(party_type: string | undefined): string {
+  if (!party_type) return "other";
+  if (/plaintiff|petitioner|appellant/i.test(party_type)) return "plaintiff";
+  if (/defendant|respondent|appellee/i.test(party_type)) return "defendant";
+  return classifyRole(party_type);
+}
 
 async function ingestBatch(rows: RawDocket[]) {
-  // Pass 1: collect unique companies in this batch.
+  // ---- 1. Collect unique companies + judges across the batch. ----
+  type CompanyAccum = { display: string; key: string };
   const companyByKey = new Map<string, CompanyAccum>();
-  type LinkSeed = { sourceId: string | null; rawParty: string; key: string; role: string };
-  const linkSeedsByDocket = new Map<string, LinkSeed[]>();
-
+  const judgeNames = new Set<string>();
   for (const d of rows) {
-    const sid = d.id != null ? String(d.id) : null;
-    const seeds: LinkSeed[] = [];
+    if (d.assigned_to_str) judgeNames.add(d.assigned_to_str.trim());
     for (const p of d.parties ?? []) {
       const raw = (p.name ?? "").trim();
       if (!raw || !looksLikeCompany(raw)) continue;
       const { display, key } = normalizeCompanyName(raw);
       if (!key) continue;
       if (!companyByKey.has(key)) companyByKey.set(key, { display, key });
-      const role =
-        (p.party_type && /plaintiff|petitioner|appellant/i.test(p.party_type) && "plaintiff") ||
-        (p.party_type && /defendant|respondent|appellee/i.test(p.party_type) && "defendant") ||
-        classifyRole(p.party_type ?? "");
-      seeds.push({ sourceId: sid, rawParty: raw, key, role });
     }
-    if (sid) linkSeedsByDocket.set(sid, seeds);
   }
 
-  // Upsert companies.
-  const keyToId = new Map<string, string>();
-  for (const c of companyByKey.values()) {
-    const row = await prisma.company.upsert({
-      where: { normKey: c.key },
-      create: { name: c.display, normKey: c.key },
-      update: {},
-      select: { id: true },
+  // ---- 2. Bulk-insert new companies + judges, then look up ids. ----
+  if (companyByKey.size) {
+    await prisma.company.createMany({
+      data: [...companyByKey.values()].map((c) => ({
+        name: c.display,
+        normKey: c.key,
+      })),
+      skipDuplicates: true,
     });
-    keyToId.set(c.key, row.id);
   }
+  const companyRows = companyByKey.size
+    ? await prisma.company.findMany({
+        where: { normKey: { in: [...companyByKey.keys()] } },
+        select: { id: true, normKey: true },
+      })
+    : [];
+  const keyToId = new Map(companyRows.map((c) => [c.normKey, c.id]));
 
-  // Upsert judges.
-  const judgeNames = new Set<string>();
-  for (const d of rows) {
-    if (d.assigned_to_str) judgeNames.add(d.assigned_to_str.trim());
-  }
-  const judgeIdByName = new Map<string, string>();
-  for (const name of judgeNames) {
-    const row = await prisma.judge.upsert({
-      where: { name },
-      create: { name },
-      update: {},
-      select: { id: true },
+  if (judgeNames.size) {
+    await prisma.judge.createMany({
+      data: [...judgeNames].map((name) => ({ name })),
+      skipDuplicates: true,
     });
-    judgeIdByName.set(name, row.id);
   }
+  const judgeRows = judgeNames.size
+    ? await prisma.judge.findMany({
+        where: { name: { in: [...judgeNames] } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const judgeIdByName = new Map(judgeRows.map((j) => [j.name, j.id]));
 
-  // Upsert cases + links + filed events.
+  // ---- 3. Cases: split into new vs existing. ----
+  const sourceIds = rows
+    .map((r) => (r.id != null ? String(r.id) : null))
+    .filter((s): s is string => s != null);
+  const existingCases = sourceIds.length
+    ? await prisma.case.findMany({
+        where: { sourceId: { in: sourceIds } },
+        select: { id: true, sourceId: true },
+      })
+    : [];
+  const existingSidSet = new Set(existingCases.map((c) => c.sourceId!));
+
+  // ---- 4. Update existing cases (delta-ingest path; per-row because field
+  //         values are per-row). Cold-start ingest skips this entirely. ----
   for (const d of rows) {
     const sid = d.id != null ? String(d.id) : null;
+    if (!sid || !existingSidSet.has(sid)) continue;
+    const dateTerm = d.date_terminated ? new Date(d.date_terminated) : null;
+    const judgeId = d.assigned_to_str
+      ? judgeIdByName.get(d.assigned_to_str.trim()) ?? null
+      : null;
+    await prisma.case.update({
+      where: { sourceId: sid },
+      data: {
+        caseName: d.case_name ?? "(unnamed)",
+        dateTerminated: dateTerm,
+        natureOfSuit: d.nature_of_suit ?? null,
+        judgeId,
+      },
+    });
+  }
+
+  // ---- 5. Insert new cases via createMany. ----
+  const newCaseInserts: Array<{
+    sourceId: string | null;
+    caseName: string;
+    court: string | null;
+    docketNumber: string | null;
+    dateFiled: Date | null;
+    dateTerminated: Date | null;
+    natureOfSuit: string | null;
+    cause: string | null;
+    judgeId: string | null;
+  }> = [];
+  for (const d of rows) {
+    const sid = d.id != null ? String(d.id) : null;
+    if (sid && existingSidSet.has(sid)) continue;
     const dateFiled = d.date_filed ? new Date(d.date_filed) : null;
     const dateTerm = d.date_terminated ? new Date(d.date_terminated) : null;
-
-    const judgeId = d.assigned_to_str ? judgeIdByName.get(d.assigned_to_str.trim()) : null;
-
-    // Court ID normalization: prefer the standardized `court_id` (CourtListener
-    // canonical: "nysd", "cand", ...) over the display label `court` ("S.D.N.Y.").
-    // jurisdiction.ts and the v2 driver pipeline expect the canonical form.
-    // Fallback: if we only have a display label, lowercase it and strip dots —
-    // a best-effort normalization that won't help every label but at least
-    // makes "S.D.N.Y." → "sdny" rather than leaving it unmatched on case.
-    const rawCourt = d.court_id ?? d.court ?? null;
-    const courtNorm = rawCourt
-      ? rawCourt.toLowerCase().replace(/\./g, "").replace(/\s+/g, "")
+    const courtNorm = normalizeCourt(d.court_id ?? d.court);
+    const judgeId = d.assigned_to_str
+      ? judgeIdByName.get(d.assigned_to_str.trim()) ?? null
       : null;
+    newCaseInserts.push({
+      sourceId: sid,
+      caseName: d.case_name ?? "(unnamed)",
+      court: courtNorm,
+      docketNumber: d.docket_number ?? null,
+      dateFiled,
+      dateTerminated: dateTerm,
+      natureOfSuit: d.nature_of_suit ?? null,
+      cause: d.cause ?? null,
+      judgeId,
+    });
+  }
+  if (newCaseInserts.length) {
+    await prisma.case.createMany({
+      data: newCaseInserts,
+      skipDuplicates: true, // belt-and-suspenders for sourceId conflicts
+    });
+  }
 
-    // Upsert by sourceId when we have one; otherwise create unconditionally.
-    // `wasCreated` controls whether we create the corresponding `case_filed`
-    // event — without this flag we'd duplicate the event on every re-ingest.
-    let caseRow;
-    let wasCreated = false;
-    if (sid) {
-      const existing = await prisma.case.findUnique({ where: { sourceId: sid }, select: { id: true } });
-      wasCreated = existing == null;
-      caseRow = await prisma.case.upsert({
-        where: { sourceId: sid },
-        create: {
-          sourceId: sid,
-          caseName: d.case_name ?? "(unnamed)",
-          court: courtNorm,
-          docketNumber: d.docket_number ?? null,
-          dateFiled,
-          dateTerminated: dateTerm,
-          natureOfSuit: d.nature_of_suit ?? null,
-          cause: d.cause ?? null,
-          judgeId: judgeId ?? null,
-        },
-        update: {
-          caseName: d.case_name ?? "(unnamed)",
-          dateTerminated: dateTerm,
-          natureOfSuit: d.nature_of_suit ?? null,
-          judgeId: judgeId ?? null,
-        },
-      });
-    } else {
-      caseRow = await prisma.case.create({
-        data: {
-          caseName: d.case_name ?? "(unnamed)",
-          court: courtNorm,
-          docketNumber: d.docket_number ?? null,
-          dateFiled,
-          dateTerminated: dateTerm,
-          natureOfSuit: d.nature_of_suit ?? null,
-          cause: d.cause ?? null,
-          judgeId: judgeId ?? null,
-        },
-      });
-      wasCreated = true;
-    }
+  // ---- 6. Re-fetch case ids (only those with sourceId — we use that to
+  //         attach links + events). Cases without sourceId get no links;
+  //         that's a known limitation called out in v1 audit. ----
+  const allCasesBySid = sourceIds.length
+    ? await prisma.case.findMany({
+        where: { sourceId: { in: sourceIds } },
+        select: { id: true, sourceId: true },
+      })
+    : [];
+  const sidToCaseId = new Map(allCasesBySid.map((c) => [c.sourceId!, c.id]));
 
-    // Filed event — only on initial create. Re-ingest must be idempotent.
-    if (dateFiled && wasCreated) {
-      await prisma.event.create({
-        data: { caseId: caseRow.id, type: "case_filed", occurredAt: dateFiled },
-      });
-    }
+  // ---- 7. Filed events — only for newly created cases. Re-ingest is
+  //         idempotent because we filter on `existingSidSet`. ----
+  const eventRows: Array<{ caseId: string; type: string; occurredAt: Date }> = [];
+  for (const d of rows) {
+    const sid = d.id != null ? String(d.id) : null;
+    if (!sid || existingSidSet.has(sid)) continue;
+    if (!d.date_filed) continue;
+    const caseId = sidToCaseId.get(sid);
+    if (!caseId) continue;
+    eventRows.push({
+      caseId,
+      type: "case_filed",
+      occurredAt: new Date(d.date_filed),
+    });
+  }
+  if (eventRows.length) {
+    await prisma.event.createMany({ data: eventRows });
+  }
 
-    // Links.
-    const seeds = sid ? linkSeedsByDocket.get(sid) ?? [] : [];
-    for (const s of seeds) {
-      const companyId = keyToId.get(s.key);
+  // ---- 8. Links: createMany + skipDuplicates handles re-ingest cleanly. ----
+  const linkRows: Array<{
+    companyId: string;
+    caseId: string;
+    role: string;
+    rawParty: string;
+  }> = [];
+  for (const d of rows) {
+    const sid = d.id != null ? String(d.id) : null;
+    if (!sid) continue;
+    const caseId = sidToCaseId.get(sid);
+    if (!caseId) continue;
+    for (const p of d.parties ?? []) {
+      const raw = (p.name ?? "").trim();
+      if (!raw || !looksLikeCompany(raw)) continue;
+      const { key } = normalizeCompanyName(raw);
+      if (!key) continue;
+      const companyId = keyToId.get(key);
       if (!companyId) continue;
-      try {
-        await prisma.companyCaseLink.create({
-          data: {
-            companyId,
-            caseId: caseRow.id,
-            role: s.role,
-            rawParty: s.rawParty,
-          },
-        });
-      } catch {
-        // unique violation = already linked, ignore
-      }
+      linkRows.push({
+        companyId,
+        caseId,
+        role: rolePartyFromType(p.party_type),
+        rawParty: raw,
+      });
     }
+  }
+  if (linkRows.length) {
+    await prisma.companyCaseLink.createMany({
+      data: linkRows,
+      skipDuplicates: true,
+    });
   }
 }
 
