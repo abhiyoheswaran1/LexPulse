@@ -4,7 +4,7 @@ import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
 import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
 import { formatRelative, cn } from "@/lib/utils";
-import { ArrowUpRight, Bell, TrendingUp, Briefcase, FileText, BellRing } from "lucide-react";
+import { ArrowUpRight, Bell, TrendingUp } from "lucide-react";
 
 // ISR: page is regenerated at most every 60s in the background. Live
 // dashboard reads cached HTML; users get near-instant responses while
@@ -109,44 +109,56 @@ export default async function DashboardPage() {
   const data = await getData();
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-muted">Overview</div>
-          <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">
-            Litigation pulse, scored.
-          </h1>
-          <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
-            Real-time risk signal across federal civil litigation. Ranked by v3 methodology —
-            volume, recency, severity, momentum, concentration, jurisdiction, judge.
-          </p>
+    <div className="space-y-10">
+      {/* Editorial hero — lede + KPIs woven into a single composed block,
+          with a faint dot-grid behind for atmosphere. The headline is an
+          assertion (research-note style), not a generic page title. */}
+      <header className="relative dot-grid -mx-8 px-8 py-10 lg:py-12 border-y border-border lift-in">
+        <div className="flex items-baseline gap-4 text-[10px] uppercase tracking-[0.32em] text-accent/80 font-mono">
+          <span>Live</span>
+          <span aria-hidden className="h-px flex-1 bg-border max-w-24" />
+          <span className="text-muted">v3.0 methodology</span>
+          <Link
+            href="/api"
+            className="ml-auto text-muted hover:text-accent transition tracking-[0.2em]"
+          >
+            API ref →
+          </Link>
         </div>
-        <Link
-          href="/api"
-          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent border border-border rounded-md px-3 py-1.5"
-        >
-          API reference →
-        </Link>
-      </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Kpi
-          label="Companies tracked"
-          value={data.totals.companies.toLocaleString()}
-          icon={<Briefcase className="size-4" />}
-        />
-        <Kpi
-          label="Cases ingested"
-          value={data.totals.cases.toLocaleString()}
-          icon={<FileText className="size-4" />}
-        />
-        <Kpi
-          label="Active alerts"
-          value={data.totals.alerts.toLocaleString()}
-          icon={<BellRing className="size-4" />}
-          hint="last 30 days"
-        />
-      </div>
+        <h1 className="editorial text-5xl lg:text-6xl mt-6 max-w-3xl">
+          Federal litigation, scored
+          <span className="italic text-accent"> per company</span>.
+        </h1>
+
+        <p className="font-display text-base lg:text-lg text-muted mt-5 max-w-xl leading-relaxed italic">
+          Real-time risk signal across {data.totals.companies.toLocaleString()} companies and{" "}
+          {data.totals.cases.toLocaleString()} federal civil cases.
+          Calibrated against SEC 8-K disclosures —{" "}
+          <Link href="/calibration" className="not-italic text-fg/90 underline decoration-dotted underline-offset-4 hover:text-accent">
+            see the numbers
+          </Link>.
+        </p>
+
+        <div className="mt-10 grid grid-cols-3 gap-x-8 max-w-2xl">
+          <Stat
+            label="Companies"
+            value={data.totals.companies.toLocaleString()}
+            delay="lift-1"
+          />
+          <Stat
+            label="Cases"
+            value={data.totals.cases.toLocaleString()}
+            delay="lift-2"
+          />
+          <Stat
+            label="Active alerts"
+            value={data.totals.alerts.toLocaleString()}
+            hint="last 30 days"
+            delay="lift-3"
+          />
+        </div>
+      </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Panel
@@ -216,25 +228,25 @@ export default async function DashboardPage() {
   );
 }
 
-function Kpi({
+// Editorial stat — used in the dashboard hero. No card border; relies on
+// the surrounding hero composition. Numbers in the display serif so
+// they read as research-note pull-quotes, not dashboard tiles.
+function Stat({
   label,
   value,
-  icon,
   hint,
+  delay,
 }: {
   label: string;
   value: string;
-  icon: React.ReactNode;
   hint?: string;
+  delay?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-panel/60 p-5 transition hover:bg-panel/80">
-      <div className="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted">
-        <span>{label}</span>
-        <span className="text-muted/60">{icon}</span>
-      </div>
-      <div className="mt-3 font-display text-3xl font-semibold tabular tracking-tight">{value}</div>
-      {hint && <div className="text-xs text-muted mt-1.5">{hint}</div>}
+    <div className={cn("lift-in", delay)}>
+      <div className="text-[10px] uppercase tracking-[0.24em] text-muted font-mono">{label}</div>
+      <div className="editorial text-4xl tabular text-fg mt-2 leading-none">{value}</div>
+      {hint && <div className="text-xs text-muted mt-2 italic font-display">{hint}</div>}
     </div>
   );
 }

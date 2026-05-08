@@ -1,14 +1,31 @@
 import type { Metadata } from "next";
-import { Inter, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { Activity, Bell, LayoutDashboard, Search, BarChart3 } from "lucide-react";
+import { Bell, LayoutDashboard, Search, BarChart3 } from "lucide-react";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const display = Bricolage_Grotesque({
+// Body sans: IBM Plex Sans. Distinctive corporate-gravitas voice; far
+// less generic than Inter. Already common in serious finance/legal
+// product lines (Bloomberg-adjacent, IBM Cloud) — fits the lineage we
+// want. Has matching Plex Mono if we ever want full IBM-family
+// consistency, but JetBrains Mono is more characterful for our
+// numerics so we keep that.
+const sans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+// Display: Fraunces (variable serif). Editorial weight, optical
+// sizing, characterful at large sizes. Pairs the dashboard with a
+// research-note voice for hero moments — calibration page, methodology
+// numbers, dashboard lede. The "softness" axis is set to express
+// (1) for warmth without veering into novelty.
+const display = Fraunces({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
+  axes: ["SOFT", "WONK", "opsz"],
 });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
@@ -19,7 +36,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${display.variable} ${mono.variable}`}>
+    <html lang="en" className={`dark ${sans.variable} ${display.variable} ${mono.variable}`}>
       <body className="min-h-screen font-sans antialiased">
         <div className="flex min-h-screen">
           <Sidebar />
@@ -36,16 +53,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 function Sidebar() {
   return (
-    <aside className="w-56 shrink-0 border-r border-border bg-panel">
-      <div className="px-5 py-5 border-b border-border flex items-center gap-2.5">
-        <div className="size-8 rounded-md bg-panel2 border border-accent/40 grid place-items-center">
-          <Activity className="size-4 text-accent" />
+    <aside className="w-56 shrink-0 border-r border-border bg-panel/40 backdrop-blur-sm">
+      <Link href="/" className="block px-5 py-6 border-b border-border group">
+        <div className="flex items-baseline gap-2">
+          <span className="editorial text-2xl tracking-tight">Lex</span>
+          <span className="editorial text-2xl tracking-tight italic text-accent group-hover:text-fg transition">
+            Pulse
+          </span>
         </div>
-        <div>
-          <div className="text-sm font-semibold tracking-tight font-display">LexPulse</div>
-          <div className="text-xs uppercase tracking-[0.14em] text-muted">litigation intel</div>
+        <div className="text-[9px] uppercase tracking-[0.32em] text-muted mt-1.5 font-mono">
+          litigation intel
         </div>
-      </div>
+      </Link>
       <nav className="p-3 space-y-0.5 text-sm">
         <NavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
         <NavItem href="/search" icon={<Search className="size-4" />} label="Search" />
@@ -53,14 +72,14 @@ function Sidebar() {
         <NavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" />
         <NavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
       </nav>
-      <div className="px-5 py-4 mt-4 text-xs text-muted leading-relaxed border-t border-border">
-        <div className="text-fg/80 font-medium mb-1">v3.0 methodology</div>
-        Federal civil dockets only. Methodology doc:{" "}
+      <div className="px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic">
+        <div className="not-italic text-fg/80 font-sans font-medium mb-1.5 text-xs">v3.0 · backtested</div>
+        IC 0.06 at 180-day horizon vs SEC 8-K disclosures.{" "}
         <Link
-          href="https://github.com/abhiyoheswaran1/LexPulse/blob/main/docs/methodology/risk-score-v3.md"
-          className="text-accent hover:underline"
+          href="/calibration"
+          className="not-italic text-accent hover:underline font-sans"
         >
-          read →
+          numbers →
         </Link>
       </div>
     </aside>
@@ -81,12 +100,14 @@ function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; l
 
 function TopBar() {
   return (
-    <div className="h-12 border-b border-border bg-panel/60 backdrop-blur flex items-center justify-between px-8">
-      <div className="text-xs text-muted tracking-[0.16em] uppercase">Litigation intelligence</div>
-      <div className="flex items-center gap-2 text-xs text-muted">
+    <div className="h-12 border-b border-border bg-panel/40 backdrop-blur flex items-center justify-between px-8">
+      <div className="text-[10px] text-muted tracking-[0.32em] uppercase font-mono">
+        Litigation Intelligence
+      </div>
+      <div className="flex items-center gap-2 text-[11px] text-muted font-mono tracking-[0.18em] uppercase">
         <span className="relative flex size-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-ok" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+          <span className="relative inline-flex size-1.5 rounded-full bg-accent" />
         </span>
         live
       </div>

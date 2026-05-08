@@ -11,11 +11,50 @@ html, body {
   color: hsl(40 14% 94%);
 }
 
-/* No body gradient. Earlier passes had amber/magenta radial washes for
-   ambient depth; impeccable kept reading the gradient color stops as a
-   colored bg and flagging any text rendered over those regions. The
-   surface reads cleanly without them. Depth comes from the panel
-   hierarchy + border contrast. */
+body {
+  position: relative;
+}
+
+/* SVG-noise texture overlay. Adds atmospheric depth without colored
+   gradients (which read as AI-slop). Very low opacity so it's
+   perceptual but doesn't fight content. Inline SVG, no extra request. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1   0 0 0 0 0.95   0 0 0 0 0.85   0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* Ensure interactive content stacks above the noise overlay. */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Faint dot-grid for hero surfaces. Bloomberg-terminal lineage. The
+   mask fades the grid out at edges so it reads as atmospheric, not
+   as a backdrop. */
+.dot-grid {
+  background-image: radial-gradient(hsl(40 14% 94% / 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: 0 0;
+  mask-image: radial-gradient(ellipse 80% 60% at center, black 30%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at center, black 30%, transparent 90%);
+}
+
+/* Lift utility for editorial display headlines. Used on the few moments
+   where we want the serif display font to read as a research-note
+   pull-quote, not a UI label. */
+.editorial {
+  font-family: var(--font-display);
+  font-feature-settings: "ss01" 1, "ss03" 1;
+  font-variation-settings: "SOFT" 30, "WONK" 0, "opsz" 144;
+  letter-spacing: -0.025em;
+  line-height: 1.02;
+}
 
 /* Tabular numbers route through JetBrains Mono so financial-style numbers
    read distinctively from prose. Kept as a utility so we apply it
@@ -31,10 +70,29 @@ html, body {
 .scrollbar::-webkit-scrollbar-thumb { background: hsl(220 12% 22%); border-radius: 4px; }
 .scrollbar::-webkit-scrollbar-track { background: transparent; }
 
-/* Ring focus state for keyboard accessibility — applied automatically to
-   focusable elements via Tailwind's :focus-visible defaults. */
+/* Focus ring uses the actual amber accent — leftover cyan was a
+   relic from an earlier color palette. */
 :focus-visible {
-  outline: 2px solid hsl(190 95% 55% / 0.6);
+  outline: 2px solid hsl(38 88% 58% / 0.7);
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* Staggered fade-in for hero elements on first paint. Applied via
+   data-stagger-* attributes; each child gets a slightly later delay. */
+@keyframes lift-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lift-in { animation: lift-in 480ms cubic-bezier(0.2, 0, 0, 1) both; }
+.lift-1 { animation-delay: 60ms; }
+.lift-2 { animation-delay: 120ms; }
+.lift-3 { animation-delay: 180ms; }
+.lift-4 { animation-delay: 240ms; }
+
+/* Score-fill animation for the gauge. */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: var(--circ); }
+  to   { stroke-dashoffset: var(--target-offset); }
+}
+.gauge-fill { animation: gauge-fill 900ms cubic-bezier(0.2, 0, 0, 1) both; animation-delay: 200ms; }
