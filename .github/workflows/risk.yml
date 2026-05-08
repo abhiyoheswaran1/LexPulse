@@ -1,0 +1,41 @@
+name: Compute risk (nightly)
+
+# Recomputes per-company risk snapshots + driver explanations + benchmarks
+# every night. Independent of ingestion — even on days no new cases land,
+# this snapshot captures momentum decay, change deltas, and any drivers
+# that fire on time-windowed signals.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily (after weekly ingest cron at 06:00)
+  workflow_dispatch:
+
+concurrency:
+  group: compute-risk
+  cancel-in-progress: false
+
+jobs:
+  risk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Refresh judge profiles (cheap; depends on terminated case data)
+        run: npm run seed:judges
+
+      - name: Compute risk snapshots
+        run: npm run risk

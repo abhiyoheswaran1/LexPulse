@@ -1,0 +1,62 @@
+name: Ingest CourtListener (weekly)
+
+# Pulls federal civil dockets matching the Russell-1000 set from CourtListener,
+# streams them through ingest.ts into Supabase. Idempotent: re-running on the
+# same data is a no-op via createMany skipDuplicates.
+#
+# Schedule: Sundays 06:00 UTC (overnight in US). Manual fire via "workflow_dispatch".
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max dockets to fetch (default 5000)"
+        required: false
+        default: "5000"
+
+concurrency:
+  group: ingest-courtlistener
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      COURTLISTENER_API_TOKEN: ${{ secrets.COURTLISTENER_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Fetch CourtListener dockets
+        run: npm run fetch:courtlistener -- --out /tmp/dockets.jsonl --limit ${{ github.event.inputs.limit || '5000' }}
+
+      - name: Verify fetched file
+        run: |
+          ls -lh /tmp/dockets.jsonl
+          echo "lines: $(wc -l < /tmp/dockets.jsonl)"
+          head -1 /tmp/dockets.jsonl | jq -c '{id, case_name, court, date_filed, parties: (.parties | length)}'
+
+      - name: Ingest into Supabase
+        run: npm run ingest -- --file /tmp/dockets.jsonl --batch 500
+
+      - name: Refresh sector + judge mappings
+        run: |
+          npm run seed:sectors
+          npm run seed:judges
+
+      - name: Compute risk snapshots
+        run: npm run risk

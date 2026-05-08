@@ -139,7 +139,8 @@ function RiskTable({ rows, showRecent = false }: { rows: Array<{ id: string; nam
   if (!rows.length) {
     return (
       <div className="text-sm text-muted py-6 text-center">
-        No data yet. Run <code className="text-fg">npm run seed</code> to load sample dockets.
+        No data yet. Run the CourtListener ingest to load real dockets:
+        <code className="text-fg block mt-1">npm run fetch:courtlistener && npm run ingest -- --file /tmp/dockets.jsonl && npm run risk</code>
       </div>
     );
   }

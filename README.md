@@ -92,35 +92,38 @@ npm install
 
 # 2. Configure database
 cp .env.example .env
-# Edit DATABASE_URL to point at your Postgres instance
+# Edit DATABASE_URL + DIRECT_URL to point at your Postgres
+# (local for dev, Supabase pooler for production)
 
 # 3. Run migrations
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 
-# 4. Seed sample data (synthetic CourtListener-shaped fixtures)
-npm run seed
+# 4. Fetch CourtListener data (Russell-1000 federal civil dockets)
+npm run fetch:courtlistener -- --out /tmp/dockets.jsonl
 
-# 5. Compute risk scores + alerts
+# 5. Ingest the JSONL into Postgres (idempotent, streaming, batched)
+npm run ingest -- --file /tmp/dockets.jsonl
+
+# 6. Seed sector mappings + judge profiles
+npm run seed:sectors
+npm run seed:judges
+
+# 7. Compute risk scores + alerts
 npm run risk
 
-# 6. Run dev server
+# 8. Run dev server
 npm run dev
 ```
 
 Open <http://localhost:3000>.
 
-### Ingesting real CourtListener data
+### Production cadence
 
-```bash
-# Download a slice of dockets bulk (compressed JSONL)
-curl -O https://com-courtlistener-storage.s3-us-west-2.amazonaws.com/bulk-data/dockets-2024-01-01.jsonl.bz2
-bunzip2 dockets-2024-01-01.jsonl.bz2
+- **Weekly**: `fetch:courtlistener` + `ingest` (delta against existing data)
+- **Nightly**: `seed:judges` + `risk` (recompute profiles + scores)
 
-# Stream-ingest
-npm run ingest -- --file ./dockets-2024-01-01.jsonl --limit 50000
-```
-
-The ingester is streaming — memory is bounded regardless of file size.
+Both run as GitHub Actions workflows in `.github/workflows/` — no manual
+ops needed once they're wired.
 
 ---
 
