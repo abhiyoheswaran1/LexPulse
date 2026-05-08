@@ -8,6 +8,7 @@ import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
 import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
+import { deriveSubScores, type RiskBreakdownV3 } from "@/lib/risk";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,36 @@ export default async function CompanyPage({ params }: { params: { id: string } }
   const score = co.scores[0];
   const cases = co.links.map((l) => ({ ...l.caseRef, role: l.role }));
   const timeline = bucketByMonth(cases.map((c) => c.dateFiled));
+
+  // v3.1 sub-scoring views derived from the persisted RiskScore. Only
+  // computed for v3 snapshots (older versions don't have all factors).
+  const subScores =
+    score && score.scoreVersion === "v3"
+      ? deriveSubScores({
+          score: score.score,
+          band: score.band as RiskBreakdownV3["band"],
+          volumeFactor: score.volumeFactor,
+          recencyFactor: score.recencyFactor,
+          severityFactor: score.severityFactor,
+          momentumFactor: score.momentumFactor,
+          concentrationFactor: score.concentrationFactor,
+          jurisdictionFactor: score.jurisdictionFactor,
+          judgeFactor: score.judgeFactor,
+          firmSignalFactor: score.firmSignalFactor,
+          similaritySignalFactor: score.similaritySignalFactor,
+          scoreVersion: "v3",
+          caseCount: score.caseCount,
+          recentCases: score.recentCases,
+          recent30: 0,
+          baselineMonthly: 0,
+          topCategory: null,
+          topCategoryShare: 0,
+          topCircuit: null,
+          topCircuitShare: 0,
+          meanJudgeDismissal: null,
+          judgeSampleSize: 0,
+        })
+      : null;
 
   const byNature = new Map<string, number>();
   for (const c of cases) {
@@ -118,7 +149,15 @@ export default async function CompanyPage({ params }: { params: { id: string } }
 
           {score && (
             <div className="flex items-start gap-8">
-              <ScoreGauge score={score.score} band={score.band} />
+              <div className="space-y-3">
+                <ScoreGauge score={score.score} band={score.band} />
+                {subScores && (
+                  <div className="grid grid-cols-2 gap-2 text-center font-mono">
+                    <SubScorePill label="Structural" value={subScores.structural} hint="stable risk" />
+                    <SubScorePill label="Current" value={subScores.momentum} hint="30d spike" />
+                  </div>
+                )}
+              </div>
               <FactorList score={score} />
             </div>
           )}
@@ -297,6 +336,16 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </Panel>
       )}
 
+    </div>
+  );
+}
+
+function SubScorePill({ label, value, hint }: { label: string; value: number; hint: string }) {
+  return (
+    <div className="rounded-md border border-border bg-panel/40 px-3 py-2.5">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-muted font-sans">{label}</div>
+      <div className="text-2xl tabular font-semibold tracking-tight mt-0.5">{value}</div>
+      <div className="text-[10px] text-muted mt-0.5 font-sans">{hint}</div>
     </div>
   );
 }

@@ -341,3 +341,56 @@ export function computeRiskV3(
     judgeSampleSize: dismissalN,
   };
 }
+
+// --- v3.1 sub-scoring views ---
+//
+// Calibration showed v3 has signal at 180d but not 30d. The score blends
+// structural risk (steady litigation profile) with momentum (last-30
+// spike) — useful as a single number, but a long-horizon user cares
+// about structural stability while a short-horizon user cares about
+// current spike. v3.1 exposes both views without re-running the math.
+//
+// structuralScore: volume + recency + severity weighting only, with
+// jurisdiction/judge multipliers applied. NO momentum, NO concentration
+// boost. Answers "is this company structurally a litigation magnet?"
+//
+// momentumScore: emphasizes recent activity. The momentum boost
+// (normalized 0..1) is rescaled to 0..100 and combined with the
+// concentration boost. Answers "what's spiking right now?"
+//
+// Both are derived from the existing breakdown — pure function, no
+// re-walking the case set. The combined v3 score (b.score) remains
+// the canonical headline.
+
+export type SubScores = {
+  // 0..100, structural-only score (volume+recency+severity × jurisdiction × judge)
+  structural: number;
+  // 0..100, momentum-only score (recent-spike + concentration × jurisdiction × judge)
+  momentum: number;
+};
+
+export function deriveSubScores(b: RiskBreakdownV3): SubScores {
+  // Structural: reconstruct the v1 score from breakdown factors using
+  // the same 0.35/0.35/0.3 weighting that computeRisk uses, then apply
+  // jurisdiction and judge multipliers.
+  const v1 = 100 * (0.35 * b.volumeFactor + 0.35 * b.recencyFactor + 0.3 * b.severityFactor);
+  const structural = Math.max(
+    0,
+    Math.min(100, Math.round(v1 * b.jurisdictionFactor * b.judgeFactor)),
+  );
+
+  // Momentum: rescale the normalized momentum factor (0..1, where 0.5
+  // is neutral) into a -50..+50 boost, add the concentration boost
+  // (0..50), then apply multipliers. A company with neutral momentum
+  // and no concentration gets a momentum-view score of 50 — the
+  // baseline. A company spiking + concentrated gets 100.
+  const momentumBoost = (b.momentumFactor - 0.5) * 100; // -50..+50
+  const concentrationBoost = b.concentrationFactor * 50; // 0..50
+  const raw = 50 + momentumBoost + concentrationBoost;
+  const momentum = Math.max(
+    0,
+    Math.min(100, Math.round(raw * b.jurisdictionFactor * b.judgeFactor)),
+  );
+
+  return { structural, momentum };
+}

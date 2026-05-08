@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeRisk, computeRiskV2, computeRiskV3, type CaseLite, type CaseLiteV2, type CaseLiteV3 } from "../risk";
+import { computeRisk, computeRiskV2, computeRiskV3, deriveSubScores, type CaseLite, type CaseLiteV2, type CaseLiteV3, type RiskBreakdownV3 } from "../risk";
 import type { JudgeProfileLite } from "../judges";
 
 const oneDay = 86400000;
@@ -200,5 +200,79 @@ describe("computeRiskV3", () => {
     const v3 = computeRiskV3(cases, profiles, now);
     expect(v3.meanJudgeDismissal).toBeCloseTo(0.25, 3);
     expect(v3.judgeSampleSize).toBe(2);
+  });
+});
+
+describe("deriveSubScores (v3.1)", () => {
+  function mkV3(over: Partial<RiskBreakdownV3> = {}): RiskBreakdownV3 {
+    return {
+      score: 50,
+      band: "moderate",
+      volumeFactor: 0.5,
+      recencyFactor: 0.5,
+      severityFactor: 0.5,
+      momentumFactor: 0.5,        // neutral
+      concentrationFactor: 0,
+      jurisdictionFactor: 1.0,
+      judgeFactor: 1.0,
+      firmSignalFactor: 0,
+      similaritySignalFactor: 0,
+      scoreVersion: "v3",
+      caseCount: 10,
+      recentCases: 5,
+      recent30: 0,
+      baselineMonthly: 1,
+      topCategory: null,
+      topCategoryShare: 0,
+      topCircuit: null,
+      topCircuitShare: 0,
+      meanJudgeDismissal: null,
+      judgeSampleSize: 0,
+      ...over,
+    };
+  }
+
+  it("structural ignores momentum + concentration boosts", () => {
+    const calm = deriveSubScores(mkV3({ momentumFactor: 0.5, concentrationFactor: 0 }));
+    const spiking = deriveSubScores(mkV3({ momentumFactor: 1.0, concentrationFactor: 1.0 }));
+    expect(calm.structural).toBe(spiking.structural);
+  });
+
+  it("momentum picks up the spike + concentration", () => {
+    const calm = deriveSubScores(mkV3({ momentumFactor: 0.5, concentrationFactor: 0 }));
+    const spiking = deriveSubScores(mkV3({ momentumFactor: 1.0, concentrationFactor: 1.0 }));
+    expect(spiking.momentum).toBeGreaterThan(calm.momentum);
+    expect(spiking.momentum).toBe(100);
+  });
+
+  it("structural responds to volume/recency/severity", () => {
+    const empty = deriveSubScores(mkV3({ volumeFactor: 0, recencyFactor: 0, severityFactor: 0 }));
+    const heavy = deriveSubScores(mkV3({ volumeFactor: 1, recencyFactor: 1, severityFactor: 1 }));
+    expect(empty.structural).toBe(0);
+    expect(heavy.structural).toBe(100);
+  });
+
+  it("multiplies through jurisdiction + judge factors", () => {
+    const base = deriveSubScores(mkV3({ jurisdictionFactor: 1.0, judgeFactor: 1.0 }));
+    const boosted = deriveSubScores(mkV3({ jurisdictionFactor: 1.15, judgeFactor: 1.10 }));
+    expect(boosted.structural).toBeGreaterThan(base.structural);
+    expect(boosted.momentum).toBeGreaterThan(base.momentum);
+  });
+
+  it("clamps at 0 and 100", () => {
+    const max = deriveSubScores(
+      mkV3({ volumeFactor: 1, recencyFactor: 1, severityFactor: 1, jurisdictionFactor: 1.15, judgeFactor: 1.15 }),
+    );
+    expect(max.structural).toBe(100);
+    const min = deriveSubScores(
+      mkV3({ volumeFactor: 0, recencyFactor: 0, severityFactor: 0, momentumFactor: 0 }),
+    );
+    expect(min.structural).toBe(0);
+    expect(min.momentum).toBe(0);
+  });
+
+  it("neutral momentum with no concentration yields 50", () => {
+    const r = deriveSubScores(mkV3({ momentumFactor: 0.5, concentrationFactor: 0 }));
+    expect(r.momentum).toBe(50);
   });
 });

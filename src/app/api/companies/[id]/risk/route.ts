@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { deriveSubScores, type RiskBreakdownV3 } from "@/lib/risk";
 
 const SOURCES = [
   {
@@ -104,6 +105,40 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     breakdown.judge = latest.judgeFactor ?? 1;
   }
 
+  // v3.1 sub-scoring: structural and momentum views derived from the
+  // existing breakdown. Pure derivation, no schema change. Only emitted
+  // for v3+ snapshots since they have all the required factors.
+  let views: { structural: number; momentum: number } | null = null;
+  if (latest.scoreVersion === "v3") {
+    const v3Like: RiskBreakdownV3 = {
+      score: latest.score,
+      band: latest.band as RiskBreakdownV3["band"],
+      volumeFactor: latest.volumeFactor,
+      recencyFactor: latest.recencyFactor,
+      severityFactor: latest.severityFactor,
+      momentumFactor: latest.momentumFactor,
+      concentrationFactor: latest.concentrationFactor,
+      jurisdictionFactor: latest.jurisdictionFactor,
+      judgeFactor: latest.judgeFactor,
+      firmSignalFactor: latest.firmSignalFactor,
+      similaritySignalFactor: latest.similaritySignalFactor,
+      scoreVersion: "v3",
+      caseCount: latest.caseCount,
+      recentCases: latest.recentCases,
+      // The fields below aren't persisted on RiskScore — sub-scoring
+      // doesn't read them, so we pass safe defaults.
+      recent30: 0,
+      baselineMonthly: 0,
+      topCategory: null,
+      topCategoryShare: 0,
+      topCircuit: null,
+      topCircuitShare: 0,
+      meanJudgeDismissal: null,
+      judgeSampleSize: 0,
+    };
+    views = deriveSubScores(v3Like);
+  }
+
   return NextResponse.json({
     score: latest.score,
     band: latest.band,
@@ -112,6 +147,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     change: { delta_7d: latest.delta7d, delta_30d: latest.delta30d },
     drivers: latest.drivers ?? [],
     breakdown,
+    views,
     benchmark,
     sources: SOURCES,
   });
