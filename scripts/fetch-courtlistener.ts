@@ -1,13 +1,18 @@
 // Fetch federal civil dockets from CourtListener Search API where any party
 // name matches our Russell-1000 set, write JSONL that ingest.ts can consume.
 //
-// Anonymous: 5,000 req/day. Set COURTLISTENER_API_TOKEN for 25,000 req/day.
+// CourtListener requires authentication for all API access (anonymous tier
+// removed). Set COURTLISTENER_API_TOKEN in .env or as a GitHub Actions secret.
 //
 // Usage:
 //   npm run fetch:courtlistener -- --out /tmp/dockets.jsonl [--limit 5000]
 //
 // Resumable-by-default: dedup is by docket_id within a single run. For
 // incremental delta runs, schedule weekly and let ingest.ts dedup by sourceId.
+
+// Load .env explicitly — this script doesn't import Prisma, which is the
+// usual side-channel that loads .env in our other scripts.
+import "dotenv/config";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -106,6 +111,41 @@ function toIso(v: unknown): string | null {
 
 type RawSearchResult = Record<string, unknown>;
 
+// CourtListener Search API doesn't return party records inline — those live
+// behind a separate /parties/ endpoint that costs 1 extra call per docket.
+// case_name reliably encodes them in "Plaintiff v. Defendant" format for the
+// vast majority of federal civil cases. We parse the names from case_name
+// and let looksLikeCompany() in resolve.ts filter out the non-corporate ones.
+function parsePartiesFromCaseName(
+  caseName: string,
+): Array<{ name: string; party_type: string }> {
+  const cn = caseName.trim();
+  if (!cn) return [];
+
+  // "In re X" / "In the Matter of X" — bankruptcy / probate matters.
+  const inRe = /^(?:in re|in the matter of)\s+(.+)/i.exec(cn);
+  if (inRe) return [{ name: inRe[1].trim(), party_type: "other" }];
+
+  // "X v. Y" / "X vs. Y" / "X v Y". Word-boundary on both sides; case-
+  // insensitive. Splits at most once — "X v. Y v. Z" treats Z as defendant
+  // baggage which is fine for our purposes (looksLikeCompany filters it).
+  const versus = cn.split(/\s+vs?\.?\s+/i);
+  if (versus.length >= 2) {
+    const plaintiff = versus[0].trim();
+    const defendant = versus
+      .slice(1)
+      .join(" v. ")
+      .replace(/\s+et\s+al\.?$/i, "")
+      .trim();
+    const out: Array<{ name: string; party_type: string }> = [];
+    if (plaintiff) out.push({ name: plaintiff, party_type: "plaintiff" });
+    if (defendant) out.push({ name: defendant, party_type: "defendant" });
+    return out;
+  }
+
+  return [{ name: cn, party_type: "other" }];
+}
+
 function transformResult(r: RawSearchResult): {
   id: number | string;
   case_name: string;
@@ -121,26 +161,10 @@ function transformResult(r: RawSearchResult): {
 } | null {
   const id = pick<number | string>(r, ["docket_id", "id"]);
   if (id == null) return null;
-  const partyNames = pick<unknown>(r, ["party", "parties"]);
-  const parties: Array<{ name: string; party_type: string }> = [];
-  if (Array.isArray(partyNames)) {
-    for (const pn of partyNames) {
-      if (typeof pn === "string" && pn.trim()) {
-        parties.push({ name: pn.trim(), party_type: "other" });
-      } else if (pn && typeof pn === "object" && "name" in pn) {
-        const name = String((pn as { name: unknown }).name ?? "").trim();
-        if (name) {
-          parties.push({
-            name,
-            party_type: String((pn as { party_type?: unknown }).party_type ?? "other"),
-          });
-        }
-      }
-    }
-  }
+  const caseName = String(pick(r, ["caseName", "case_name"]) ?? "(unnamed)");
   return {
     id,
-    case_name: String(pick(r, ["caseName", "case_name"]) ?? "(unnamed)"),
+    case_name: caseName,
     docket_number: pick(r, ["docketNumber", "docket_number"]),
     court: pick(r, ["court"]),
     court_id: pick(r, ["court_id", "court_exact"]),
@@ -149,7 +173,7 @@ function transformResult(r: RawSearchResult): {
     nature_of_suit: pick(r, ["suitNature", "nature_of_suit", "natureOfSuit"]),
     cause: pick(r, ["cause"]),
     assigned_to_str: pick(r, ["assignedTo", "assigned_to_str", "assigned_to"]),
-    parties,
+    parties: parsePartiesFromCaseName(caseName),
   };
 }
 
