@@ -59,6 +59,7 @@ async function rateLimited(url: string, init?: RequestInit): Promise<Response> {
 type Args = {
   link: boolean;
   filings: boolean;
+  refresh: boolean;
   since: Date;
   limit: number | null;
 };
@@ -68,6 +69,7 @@ function parseArgs(): Args {
   const out: Args = {
     link: false,
     filings: false,
+    refresh: false,
     since: new Date(Date.now() - 730 * 86400 * 1000), // ~24 months
     limit: null,
   };
@@ -75,10 +77,11 @@ function parseArgs(): Args {
     const a = argv[i];
     if (a === "--link") out.link = true;
     else if (a === "--filings") out.filings = true;
+    else if (a === "--refresh") out.refresh = true;
     else if (a === "--since") out.since = new Date(argv[++i]);
     else if (a === "--limit") out.limit = parseInt(argv[++i], 10);
   }
-  if (!out.link && !out.filings) {
+  if (!out.link && !out.filings && !out.refresh) {
     out.link = true;
     out.filings = true;
   }
@@ -156,15 +159,80 @@ async function fetchSubmissions(cik: string): Promise<SecFiling[]> {
   return parseSubmissions(json);
 }
 
-async function fetchPrimaryDocText(cik: string, accession: string, doc: string): Promise<string> {
-  const accClean = accessionNoDashes(accession);
-  // SEC stores primary docs at /Archives/edgar/data/<cik-no-leading-zeros>/<acc-no-dashes>/<filename>
+// Filenames produced by SEC's iXBRL viewer pipeline that we want to skip
+// when extracting prose. These are inline financial reports and XBRL
+// taxonomy extensions, not human-readable content.
+const SKIP_DOC_PATTERNS = [
+  /^R\d+\.htm$/i,                  // R1.htm, R2.htm — financial-report renderings
+  /^FilingSummary\.xml$/i,
+  /^MetaLinks\.json$/i,
+  /^Financial_Report\.xlsx$/i,
+  /\.xsd$/i,                       // XBRL schema
+  /_(def|lab|pre|cal)\.xml$/i,     // XBRL linkbases
+  /_htm\.xml$/i,                   // inline-XBRL companion XML
+  /-index(?:-headers)?\.html?$/i,  // SEC index files
+  /-xbrl\.zip$/i,
+  /\.zip$/i,
+  /^Show\.js$/i,
+  /^report\.css$/i,
+  /^image\d/i,
+  /\.(jpg|jpeg|png|gif|pdf)$/i,
+];
+
+function isProseDoc(name: string): boolean {
+  if (!/\.html?$/i.test(name)) return false;
+  return !SKIP_DOC_PATTERNS.some((re) => re.test(name));
+}
+
+// Fetch the filing's directory index and collect text from every prose
+// HTML document inside (cover page + press releases + exhibits). The
+// SEC's `primaryDocument` field commonly points at an inline-XBRL cover
+// page that strips down to meaningless tag values — we need the
+// exhibits for the actual litigation prose.
+async function fetchFilingProseText(
+  cik: string,
+  accession: string,
+  primaryDocument: string,
+): Promise<string> {
   const cikStripped = cik.replace(/^0+/, "");
-  const url = `https://www.sec.gov/Archives/edgar/data/${cikStripped}/${accClean}/${doc}`;
-  const res = await rateLimited(url);
-  if (!res.ok) return "";
-  const html = await res.text();
-  return htmlToText(html);
+  const accClean = accessionNoDashes(accession);
+  const baseUrl = `https://www.sec.gov/Archives/edgar/data/${cikStripped}/${accClean}`;
+  const indexUrl = `${baseUrl}/index.json`;
+
+  let docNames: string[] = [];
+  try {
+    const idx = await rateLimited(indexUrl);
+    if (idx.ok) {
+      const j = (await idx.json()) as { directory?: { item?: { name?: string }[] } };
+      const items = j.directory?.item ?? [];
+      docNames = items.map((it) => it.name ?? "").filter((n) => n.length > 0);
+    }
+  } catch {
+    // Fall through to primary-doc-only strategy.
+  }
+
+  let docsToFetch = docNames.filter(isProseDoc);
+  // If we didn't find anything via the index, fall back to the primary doc.
+  if (docsToFetch.length === 0 && primaryDocument) {
+    docsToFetch = [primaryDocument];
+  }
+  // SEC bandwidth manners: cap to 4 docs per filing. Largest first heuristic
+  // doesn't help without size info; fetch in directory order.
+  if (docsToFetch.length > 4) docsToFetch = docsToFetch.slice(0, 4);
+
+  const parts: string[] = [];
+  for (const name of docsToFetch) {
+    try {
+      const res = await rateLimited(`${baseUrl}/${name}`);
+      if (!res.ok) continue;
+      const html = await res.text();
+      const text = htmlToText(html);
+      if (text.length > 500) parts.push(text); // skip near-empty XBRL stubs
+    } catch {
+      continue;
+    }
+  }
+  return parts.join("\n\n");
 }
 
 async function backfillFilings(since: Date, limit: number | null): Promise<{ filings: number; companies: number }> {
@@ -214,7 +282,7 @@ async function backfillFilings(since: Date, limit: number | null): Promise<{ fil
         const cikStripped = c.cik.replace(/^0+/, "");
         primaryUrl = `https://www.sec.gov/Archives/edgar/data/${cikStripped}/${accessionNoDashes(f.accession)}/${f.primaryDocument}`;
         try {
-          const txt = await fetchPrimaryDocText(c.cik, f.accession, f.primaryDocument);
+          const txt = await fetchFilingProseText(c.cik, f.accession, f.primaryDocument);
           excerpt = buildItemTextExcerpt(txt);
         } catch (e) {
           console.warn(`[filings] doc fetch failed for ${f.accession}:`, (e as Error).message);
@@ -249,10 +317,55 @@ async function backfillFilings(since: Date, limit: number | null): Promise<{ fil
   return { filings: totalFilings, companies: touchedCompanies };
 }
 
+// Re-fetches prose for filings already in DB. Use after a fetcher
+// regression where stored excerpts are bad. Updates only filings whose
+// itemTextExcerpt is null/short or whose excerpt looks like an XBRL
+// skeleton ("xmlns" / "us-gaap" tokens dominate).
+async function refreshExcerpts(limit: number | null): Promise<number> {
+  const all = await prisma.secEdgarFiling.findMany({
+    select: { id: true, cik: true, accession: true, primaryDocUrl: true, itemTextExcerpt: true },
+  });
+  // Heuristic: stale excerpts are short OR contain XBRL fingerprints early.
+  const stale = all.filter((f) => {
+    const t = f.itemTextExcerpt ?? "";
+    if (t.length < 1000) return true;
+    const head = t.slice(0, 500).toLowerCase();
+    return head.includes("xmlns") || head.includes("us-gaap") || head.includes("xbrl");
+  });
+  console.log(`[refresh] ${stale.length} of ${all.length} filings need fresh excerpts`);
+
+  let updated = 0;
+  for (const f of stale) {
+    if (limit != null && updated >= limit) break;
+    if (!f.primaryDocUrl) continue;
+    // Recover primary document filename from the stored URL.
+    const m = /\/([^/]+)$/.exec(f.primaryDocUrl);
+    const primaryDocument = m ? m[1] : "";
+    if (!primaryDocument) continue;
+    try {
+      const txt = await fetchFilingProseText(f.cik, f.accession, primaryDocument);
+      const excerpt = buildItemTextExcerpt(txt);
+      if (excerpt) {
+        await prisma.secEdgarFiling.update({
+          where: { id: f.id },
+          data: { itemTextExcerpt: excerpt },
+        });
+        updated++;
+        if (updated % 25 === 0) console.log(`[refresh] ${updated}/${stale.length}…`);
+      }
+    } catch (e) {
+      // Skip; will pick up on next refresh run.
+    }
+  }
+  console.log(`[refresh] updated ${updated} filings`);
+  return updated;
+}
+
 async function main() {
   const args = parseArgs();
   console.log(
-    `[edgar] link=${args.link} filings=${args.filings} since=${args.since.toISOString().slice(0, 10)} limit=${args.limit ?? "∞"}`
+    `[edgar] link=${args.link} filings=${args.filings} refresh=${args.refresh} ` +
+      `since=${args.since.toISOString().slice(0, 10)} limit=${args.limit ?? "∞"}`
   );
 
   if (args.link) {
@@ -261,6 +374,9 @@ async function main() {
   if (args.filings) {
     const { filings, companies } = await backfillFilings(args.since, args.limit);
     console.log(`[edgar] inserted ${filings} new 8-K filings across ${companies} companies`);
+  }
+  if (args.refresh) {
+    await refreshExcerpts(args.limit);
   }
 
   await prisma.$disconnect();
