@@ -8,6 +8,7 @@
 //
 // Idempotent on alerts: dedup by case id (new_case) and 24h (case_spike).
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/db";
 import {
   computeRiskV3,
@@ -140,8 +141,25 @@ async function main() {
     inner.set(co.id, inner.size);
   }
 
+  // Batched-write buffers. Per-row `prisma.riskScore.create` was the hot
+  // path bottleneck (~150ms × 7K companies = 18 min serial). Buffering
+  // via createMany cuts persistence from ~7K round-trips to ~35.
+  const FLUSH_EVERY = 200;
+  const riskBuf: Prisma.RiskScoreCreateManyInput[] = [];
+  const alertBuf: Prisma.AlertCreateManyInput[] = [];
   let written = 0;
   let alerts = 0;
+  const flushRisk = async () => {
+    if (riskBuf.length === 0) return;
+    await prisma.riskScore.createMany({ data: riskBuf });
+    riskBuf.length = 0;
+  };
+  const flushAlerts = async () => {
+    if (alertBuf.length === 0) return;
+    await prisma.alert.createMany({ data: alertBuf });
+    alertBuf.length = 0;
+  };
+
   for (const { co, v3, cases12moTotal } of computed) {
     // Benchmark — exclude the company's own score from its cohort to avoid
     // self-bias in percentile rank. Lookup by company id (not by score value)
@@ -203,87 +221,91 @@ async function main() {
       : null;
     const drivers = generateDrivers({ curr: currSnap, prev: prevSnap, newCases7d });
 
-    // Persist
-    await prisma.riskScore.create({
-      data: {
-        companyId: co.id,
-        score: v3.score,
-        band: v3.band,
-        volumeFactor: v3.volumeFactor,
-        recencyFactor: v3.recencyFactor,
-        severityFactor: v3.severityFactor,
-        momentumFactor: v3.momentumFactor,
-        concentrationFactor: v3.concentrationFactor,
-        jurisdictionFactor: v3.jurisdictionFactor,
-        judgeFactor: v3.judgeFactor,
-        firmSignalFactor: v3.firmSignalFactor,
-        similaritySignalFactor: v3.similaritySignalFactor,
-        scoreVersion: "v3",
-        caseCount: v3.caseCount,
-        recentCases: v3.recentCases,
-        drivers: drivers as unknown as object,
-        rawStats: {
-          recent30: v3.recent30,
-          baselineMonthly: v3.baselineMonthly,
-          topCategory: v3.topCategory,
-          topCategoryShare: v3.topCategoryShare,
-          topCircuit: v3.topCircuit,
-          topCircuitShare: v3.topCircuitShare,
-          cat12moTotal: cases12moTotal,
-          meanJudgeDismissal: v3.meanJudgeDismissal,
-          judgeSampleSize: v3.judgeSampleSize,
-        } as unknown as object,
-        delta7d,
-        delta30d,
-        cohortSize: benchmark?.cohortSize ?? null,
-        cohortP50: benchmark?.cohortP50 ?? null,
-        cohortMean: benchmark?.cohortMean ?? null,
-        percentile: benchmark?.percentile ?? null,
-        zScore: benchmark?.zScore ?? null,
-      },
+    // Persist (buffered — flushed every FLUSH_EVERY companies)
+    riskBuf.push({
+      companyId: co.id,
+      score: v3.score,
+      band: v3.band,
+      volumeFactor: v3.volumeFactor,
+      recencyFactor: v3.recencyFactor,
+      severityFactor: v3.severityFactor,
+      momentumFactor: v3.momentumFactor,
+      concentrationFactor: v3.concentrationFactor,
+      jurisdictionFactor: v3.jurisdictionFactor,
+      judgeFactor: v3.judgeFactor,
+      firmSignalFactor: v3.firmSignalFactor,
+      similaritySignalFactor: v3.similaritySignalFactor,
+      scoreVersion: "v3",
+      caseCount: v3.caseCount,
+      recentCases: v3.recentCases,
+      drivers: drivers as unknown as object,
+      rawStats: {
+        recent30: v3.recent30,
+        baselineMonthly: v3.baselineMonthly,
+        topCategory: v3.topCategory,
+        topCategoryShare: v3.topCategoryShare,
+        topCircuit: v3.topCircuit,
+        topCircuitShare: v3.topCircuitShare,
+        cat12moTotal: cases12moTotal,
+        meanJudgeDismissal: v3.meanJudgeDismissal,
+        judgeSampleSize: v3.judgeSampleSize,
+      } as unknown as object,
+      delta7d,
+      delta30d,
+      cohortSize: benchmark?.cohortSize ?? null,
+      cohortP50: benchmark?.cohortP50 ?? null,
+      cohortMean: benchmark?.cohortMean ?? null,
+      percentile: benchmark?.percentile ?? null,
+      zScore: benchmark?.zScore ?? null,
     });
     written++;
 
-    // --- Alerts (preserved from v1, plus risk_jump on v3 deltas) ---
+    // --- Alerts (buffered) ---
     // risk_jump only fires when comparing same-version scores; first v3
-    // snapshot per company therefore doesn't generate a methodology-change
-    // false alarm.
+    // snapshot per company doesn't generate a methodology-change false alarm.
     if (latestPriorV3 && v3.score - latestPriorV3.score >= 15) {
-      await prisma.alert.create({
-        data: {
-          companyId: co.id,
-          type: "risk_jump",
-          severity: v3.score >= 75 ? "critical" : "warn",
-          title: `Risk score jumped ${latestPriorV3.score} → ${v3.score}`,
-          body: `${co.name} risk increased by ${v3.score - latestPriorV3.score} points since last snapshot.`,
-          refs: { from: latestPriorV3.score, to: v3.score },
-        },
+      alertBuf.push({
+        companyId: co.id,
+        type: "risk_jump",
+        severity: v3.score >= 75 ? "critical" : "warn",
+        title: `Risk score jumped ${latestPriorV3.score} → ${v3.score}`,
+        body: `${co.name} risk increased by ${v3.score - latestPriorV3.score} points since last snapshot.`,
+        refs: { from: latestPriorV3.score, to: v3.score },
       });
       alerts++;
     }
 
+    // new_case alerts are bulk-suppressed on cold-start ingest: when a
+    // company has many cases land in one ingest, we'd emit hundreds of
+    // alerts and bury anything actually new. Suppress when more than 5
+    // recent cases — that's a bulk import, not real-time activity.
     const alreadyAlerted = new Set<string>();
     for (const a of co.alerts) {
       const refs = a.refs as { caseId?: string } | null;
       if (refs?.caseId) alreadyAlerted.add(refs.caseId);
     }
-    for (const l of co.links) {
+    const newCases7dRaw = co.links.filter((l) => {
       const c = l.caseRef;
-      if (!c.dateFiled || c.dateFiled < sevenAgo) continue;
-      if (alreadyAlerted.has(c.id)) continue;
-      await prisma.alert.create({
-        data: {
+      return c.dateFiled && c.dateFiled >= sevenAgo && !alreadyAlerted.has(c.id);
+    });
+    if (newCases7dRaw.length <= 5) {
+      for (const l of newCases7dRaw) {
+        const c = l.caseRef;
+        if (!c.dateFiled) continue;
+        alertBuf.push({
           companyId: co.id,
           type: "new_case",
           severity: "info",
           title: `New case filed: ${c.caseName}`,
           body: `${co.name} appears as a party in a case filed on ${c.dateFiled.toISOString().slice(0, 10)}.`,
           refs: { caseId: c.id },
-        },
-      });
-      alerts++;
+        });
+        alerts++;
+      }
     }
 
+    // case_spike alert (still synchronous because it requires a per-company
+    // findFirst dedup against last-24h alerts; rare path, bounded cost).
     const thirtyAgo = new Date(now.getTime() - 30 * ONE_DAY);
     const oneEightyAgo = new Date(now.getTime() - 180 * ONE_DAY);
     let last30 = 0;
@@ -296,28 +318,30 @@ async function main() {
     }
     const monthlyBaseline = prior150 / 5;
     if (last30 >= Math.max(3, 2 * monthlyBaseline) && last30 > 0) {
-      const recentSpike = await prisma.alert.findFirst({
-        where: {
-          companyId: co.id,
-          type: "case_spike",
-          createdAt: { gte: new Date(now.getTime() - ONE_DAY) },
-        },
+      alertBuf.push({
+        companyId: co.id,
+        type: "case_spike",
+        severity: "warn",
+        title: `Spike in filings: ${last30} cases in last 30 days`,
+        body: `${co.name} saw ${last30} new filings vs a baseline of ${monthlyBaseline.toFixed(1)}/month.`,
+        refs: { last30, baseline: Number(monthlyBaseline.toFixed(2)) },
       });
-      if (!recentSpike) {
-        await prisma.alert.create({
-          data: {
-            companyId: co.id,
-            type: "case_spike",
-            severity: "warn",
-            title: `Spike in filings: ${last30} cases in last 30 days`,
-            body: `${co.name} saw ${last30} new filings vs a baseline of ${monthlyBaseline.toFixed(1)}/month.`,
-            refs: { last30, baseline: Number(monthlyBaseline.toFixed(2)) },
-          },
-        });
-        alerts++;
-      }
+      alerts++;
+    }
+
+    // Flush buffers periodically.
+    if (riskBuf.length >= FLUSH_EVERY) {
+      await flushRisk();
+      process.stdout.write(`\rflushed ${written} risk snapshots`);
+    }
+    if (alertBuf.length >= FLUSH_EVERY) {
+      await flushAlerts();
     }
   }
+
+  // Final flush.
+  await flushRisk();
+  await flushAlerts();
 
   console.log(`wrote ${written} v3 risk snapshots, generated ${alerts} alerts`);
   await prisma.$disconnect();
