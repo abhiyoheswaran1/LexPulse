@@ -13,47 +13,66 @@ export function BenchmarkPanel({ benchmark, score }: { benchmark: Benchmark; sco
   if (!benchmark || benchmark.percentile === null || benchmark.percentile === undefined) {
     return (
       <Panel title="Sector benchmark">
-        <div className="text-xs text-muted py-2">
-          No benchmark available. Sector classification or 30+ peer cohort required.
+        <div className="text-xs text-muted py-3 leading-relaxed">
+          No benchmark available. Sector classification or a 30+ peer cohort is required for a
+          percentile rank.
         </div>
       </Panel>
     );
   }
   const pct = Math.round(benchmark.percentile);
+  // Suffix English ordinal (1st, 2nd, 3rd, 4th, ...) for the percentile.
+  const suffix =
+    pct % 100 >= 11 && pct % 100 <= 13
+      ? "th"
+      : ["th", "st", "nd", "rd"][pct % 10] ?? "th";
   return (
     <Panel
       title="Sector benchmark"
       subtitle={benchmark.sector_label ?? benchmark.sector ?? ""}
     >
-      <div className="space-y-3">
-        <div className="flex items-baseline gap-2">
-          <div className="text-2xl font-semibold tabular text-fg">
+      <div className="space-y-5">
+        <div className="flex items-baseline gap-3">
+          <div className="font-display text-4xl font-semibold tabular text-fg leading-none tracking-tight">
             {pct}
-            <span className="text-sm font-normal text-muted">th</span>
+            <span className="text-base font-normal text-muted ml-0.5">{suffix}</span>
           </div>
           <div className="text-xs text-muted">
-            percentile · {benchmark.cohort_size} peers
+            percentile · {benchmark.cohort_size?.toLocaleString()} peers
           </div>
         </div>
-        <div className="relative h-2 rounded bg-panel border border-border overflow-hidden">
-          <div className="absolute inset-y-0 left-0 bg-elev/40" style={{ width: `${pct}%` }} />
-          <div className="absolute inset-y-0 w-0.5 bg-fg" style={{ left: `${pct}%` }} />
+        <div className="space-y-1.5">
+          <div className="relative h-2 rounded-full bg-panel2 overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent/70 to-accent/30 rounded-full"
+              style={{ width: `${pct}%` }}
+            />
+            <div
+              className="absolute -top-1 -bottom-1 w-0.5 bg-fg shadow-glow"
+              style={{ left: `calc(${pct}% - 1px)` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted/70 tabular">
+            <span>0</span>
+            <span>50</span>
+            <span>100</span>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-[11px] tabular">
-          <div>
-            <div className="text-muted">This co.</div>
-            <div className="font-semibold">{score}</div>
-          </div>
-          <div>
-            <div className="text-muted">Sector p50</div>
-            <div className="font-semibold">{benchmark.sector_median ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-muted">Z-score</div>
-            <div className="font-semibold">{benchmark.z_score?.toFixed(2) ?? "—"}</div>
-          </div>
+        <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border text-xs">
+          <Stat label="This co." value={score.toString()} />
+          <Stat label="Sector p50" value={benchmark.sector_median?.toString() ?? "—"} />
+          <Stat label="Z-score" value={benchmark.z_score?.toFixed(2) ?? "—"} />
         </div>
       </div>
     </Panel>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{label}</div>
+      <div className="font-semibold tabular mt-1">{value}</div>
+    </div>
   );
 }

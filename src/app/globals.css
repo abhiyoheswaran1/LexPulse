@@ -7,12 +7,36 @@
 }
 
 html, body {
-  background-color: hsl(220 18% 7%);
-  color: hsl(220 15% 92%);
+  background-color: hsl(220 22% 6%);
+  color: hsl(220 15% 94%);
 }
 
-.tabular { font-variant-numeric: tabular-nums; }
+/* Subtle ambient gradient on the main surface — adds depth without
+   adding a separate "card" layer that impeccable would flag. */
+body {
+  background-image:
+    radial-gradient(at 80% -10%, hsl(190 95% 55% / 0.05), transparent 40%),
+    radial-gradient(at 0% 90%, hsl(28 92% 60% / 0.04), transparent 50%);
+}
+
+/* Tabular numbers route through JetBrains Mono so financial-style numbers
+   read distinctively from prose. Kept as a utility so we apply it
+   intentionally on data cells, scores, deltas — not on body copy. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss01", "ss02";
+  letter-spacing: -0.01em;
+}
 
 .scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
 .scrollbar::-webkit-scrollbar-thumb { background: hsl(220 12% 22%); border-radius: 4px; }
 .scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+/* Ring focus state for keyboard accessibility — applied automatically to
+   focusable elements via Tailwind's :focus-visible defaults. */
+:focus-visible {
+  outline: 2px solid hsl(190 95% 55% / 0.6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

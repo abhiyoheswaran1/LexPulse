@@ -8,29 +8,38 @@ export function RiskBadge({
 }: {
   score: number;
   band: string;
-  size?: "sm" | "lg";
+  size?: "sm" | "md" | "lg";
   delta?: number | null;
 }) {
+  const sizeCls =
+    size === "lg"
+      ? "px-3 py-1.5 text-sm gap-2"
+      : size === "md"
+        ? "px-2.5 py-1 text-xs gap-1.5"
+        : "px-2 py-0.5 text-xs gap-1.5";
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border tabular font-medium",
+        "inline-flex items-center rounded-md border tabular font-medium",
         bandBg(band),
-        size === "lg" ? "px-2.5 py-1 text-sm" : "px-2 py-0.5 text-xs",
+        sizeCls,
       )}
-      title={`Risk band: ${band}${delta !== undefined && delta !== null ? ` · 7d Δ ${delta > 0 ? "+" : ""}${delta}` : ""}`}
+      title={
+        `Risk band: ${band}` +
+        (delta !== undefined && delta !== null ? ` · 7d Δ ${delta > 0 ? "+" : ""}${delta}` : "")
+      }
     >
       <span className="size-1.5 rounded-full bg-current opacity-80" />
-      {score}
-      <span className="text-[10px] uppercase tracking-wider opacity-70 ml-0.5">{band}</span>
+      <span className="tabular font-semibold">{score}</span>
+      <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{band}</span>
       {delta !== undefined && delta !== null && delta !== 0 && (
         <span
           className={cn(
-            "text-[10px] tabular ml-1 font-semibold",
+            "inline-flex items-center gap-0.5 ml-1 text-[10px] tabular font-semibold",
             delta > 0 ? "text-bad" : "text-ok",
           )}
         >
-          {delta > 0 ? "↑" : "↓"}
+          <span aria-hidden>{delta > 0 ? "↑" : "↓"}</span>
           {Math.abs(delta)}
         </span>
       )}

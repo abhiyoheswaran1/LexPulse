@@ -26,10 +26,14 @@ export default async function AlertsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
-        <p className="text-sm text-muted mt-1">Material changes worth a second look.</p>
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Signal feed</div>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">Alerts</h1>
+        <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
+          Material changes worth a second look — new filings, spikes, and risk-score jumps across
+          the watched universe.
+        </p>
       </header>
 
       <Panel>

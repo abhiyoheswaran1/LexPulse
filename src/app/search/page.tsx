@@ -32,20 +32,24 @@ export default function SearchPage() {
   }, [q]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
-        <p className="text-sm text-muted mt-1">Find a company. Variants like &ldquo;Acme Inc.&rdquo; and &ldquo;ACME Corporation&rdquo; resolve to the same record.</p>
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Discovery</div>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">Search</h1>
+        <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
+          Find a company. Variants like &ldquo;Acme Inc.&rdquo; and &ldquo;ACME Corporation&rdquo;
+          resolve to the same record.
+        </p>
       </header>
 
       <div className="relative">
-        <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <Search className="size-4 absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
         <input
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search company name…"
-          className="w-full bg-panel border border-border rounded-md pl-9 pr-3 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:border-accent/60"
+          className="w-full bg-panel/60 border border-border rounded-xl pl-11 pr-4 py-3 text-sm placeholder:text-muted/60 focus:outline-none focus:border-accent/60 focus:bg-panel transition"
         />
       </div>
 
