@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { Activity, Bell, LayoutDashboard, Search } from "lucide-react";
+import { Activity, Bell, LayoutDashboard, Search, BarChart3 } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const display = Bricolage_Grotesque({
@@ -50,6 +50,7 @@ function Sidebar() {
         <NavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
         <NavItem href="/search" icon={<Search className="size-4" />} label="Search" />
         <NavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" />
+        <NavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" />
         <NavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
       </nav>
       <div className="px-5 py-4 mt-4 text-xs text-muted leading-relaxed border-t border-border">
