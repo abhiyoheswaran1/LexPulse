@@ -160,6 +160,12 @@ function snippetAround(text: string, idx: number): string {
 // Multiple events of different types can coexist. For repeated hits of
 // the same type, we keep the first match's snippet but boost confidence
 // to 0.9 (multiple co-occurring signals); a lone match is 0.5.
+//
+// Amount extraction: search a wide paragraph-sized window (1500 chars)
+// around the firing pattern, not just the 200-char snippet. 8-K
+// filings commonly state the amount sentences away from the verb that
+// trips the classifier ("agreed to a settlement to resolve claims..."
+// then later "...present value commitment of $210 million...").
 export function classifyMaterialEvents(text: string): ExtractedEvent[] {
   if (!text) return [];
   const byType = new Map<EventType, { hits: number; firstIdx: number }>();
@@ -181,11 +187,15 @@ export function classifyMaterialEvents(text: string): ExtractedEvent[] {
   const out: ExtractedEvent[] = [];
   for (const [eventType, { hits, firstIdx }] of byType) {
     const snippet = snippetAround(text, firstIdx);
+    const wideWindow = text.slice(
+      Math.max(0, firstIdx - 750),
+      Math.min(text.length, firstIdx + 750),
+    );
     out.push({
       eventType,
       confidence: hits >= 2 ? 0.9 : 0.5,
       snippet,
-      amountUsd: extractAmountUsd(snippet),
+      amountUsd: extractAmountUsd(wideWindow),
     });
   }
   return out;
