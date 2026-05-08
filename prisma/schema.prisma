@@ -26,26 +26,32 @@ datasource db {
 }
 
 model Company {
-  id          String   @id @default(cuid())
-  name        String
+  id               String   @id @default(cuid())
+  name             String
   // normalized name used for entity-resolution lookups (lowercase, no punct,
   // no corp suffix). Unique because it's our merge key.
-  normKey     String   @unique
-  ticker      String?
-  jurisdiction String?
+  normKey          String   @unique
+  ticker           String?
+  jurisdiction     String?
   // Sector classification (Score v2). Source can be "russell1000" (manual),
   // "edgar" (CIK→SIC lookup), or null. confidence 0..1.
-  naicsCode         String?
-  sectorKey         String?
-  sector            Sector?  @relation(fields: [sectorKey], references: [key])
-  sectorSource      String?
-  sectorConfidence  Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  naicsCode        String?
+  sectorKey        String?
+  sector           Sector?  @relation(fields: [sectorKey], references: [key])
+  sectorSource     String?
+  sectorConfidence Float?
+  // SEC EDGAR Central Index Key — public companies only. Set by the
+  // calibration linkage pass (sub-project F). Null for private companies,
+  // foreign entities, or unmatched names.
+  cik              String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  links       CompanyCaseLink[]
-  scores      RiskScore[]
-  alerts      Alert[]
+  links        CompanyCaseLink[]
+  scores       RiskScore[]
+  alerts       Alert[]
+  edgarFilings SecEdgarFiling[]
+  backtestObs  BacktestObservation[]
 
   @@index([name])
   @@index([sectorKey])
@@ -53,35 +59,35 @@ model Company {
 }
 
 model Sector {
-  key            String    @id
-  label          String
-  naicsPrefixes  String[]
-  companies      Company[]
+  key           String    @id
+  label         String
+  naicsPrefixes String[]
+  companies     Company[]
 
   @@map("sectors")
 }
 
 model Case {
-  id            String   @id @default(cuid())
+  id             String    @id @default(cuid())
   // CourtListener docket id, when present
-  sourceId      String?  @unique
-  caseName      String
-  court         String?
-  docketNumber  String?
+  sourceId       String?   @unique
+  caseName       String
+  court          String?
+  docketNumber   String?
   // YYYY-MM-DD of filing
-  dateFiled     DateTime?
+  dateFiled      DateTime?
   dateTerminated DateTime?
   // CourtListener's nature_of_suit code or human label. We map to a severity
   // bucket in lib/risk.ts.
-  natureOfSuit  String?
-  cause         String?
-  judgeId       String?
-  judge         Judge?   @relation(fields: [judgeId], references: [id])
+  natureOfSuit   String?
+  cause          String?
+  judgeId        String?
+  judge          Judge?    @relation(fields: [judgeId], references: [id])
 
-  links         CompanyCaseLink[]
-  events        Event[]
+  links  CompanyCaseLink[]
+  events Event[]
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([dateFiled])
   @@index([natureOfSuit])
@@ -89,16 +95,16 @@ model Case {
 }
 
 model CompanyCaseLink {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   companyId String
-  caseId   String
+  caseId    String
   // "plaintiff" | "defendant" | "other"
   role      String
   // raw party string from the source — kept for debugging entity resolution
   rawParty  String
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  caseRef   Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  caseRef Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, caseId, role])
   @@index([caseId])
@@ -106,8 +112,8 @@ model CompanyCaseLink {
 }
 
 model Judge {
-  id      String         @id @default(cuid())
-  name    String         @unique
+  id      String        @id @default(cuid())
+  name    String        @unique
   court   String?
   cases   Case[]
   profile JudgeProfile?
@@ -116,97 +122,180 @@ model Judge {
 }
 
 model JudgeProfile {
-  judgeId            String    @id
+  judgeId          String   @id
   // 0..1 — fraction of terminated cases with duration < 90 days. Null when
   // sample size < 5 (we don't trust small estimates).
-  dismissalRate      Float?
-  avgDurationDays    Int?
+  dismissalRate    Float?
+  avgDurationDays  Int?
   // 0..1 — null when no terminated outcomes available (waiting on outcome
   // extraction, sub-project F).
-  plaintiffWinRate   Float?
+  plaintiffWinRate Float?
   // Sample size used for the estimate.
-  caseCount          Int       @default(0)
-  computedAt         DateTime  @default(now())
-  judge              Judge     @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  caseCount        Int      @default(0)
+  computedAt       DateTime @default(now())
+  judge            Judge    @relation(fields: [judgeId], references: [id], onDelete: Cascade)
 
   @@map("judge_profiles")
 }
 
 model RiskScore {
-  id          String   @id @default(cuid())
-  companyId   String
+  id                     String   @id @default(cuid())
+  companyId              String
   // 0..100
-  score       Int
+  score                  Int
   // band derived from score: low | moderate | elevated | high
-  band        String
+  band                   String
   // breakdown for UI tooltips & explainability (v1)
-  volumeFactor   Float
-  recencyFactor  Float
-  severityFactor Float
+  volumeFactor           Float
+  recencyFactor          Float
+  severityFactor         Float
   // v2 components — additive; v1 rows default to neutral values
-  momentumFactor       Float    @default(0)
-  concentrationFactor  Float    @default(0)
-  jurisdictionFactor   Float    @default(1)
+  momentumFactor         Float    @default(0)
+  concentrationFactor    Float    @default(0)
+  jurisdictionFactor     Float    @default(1)
   // v3 components — additive; v1/v2 rows default to neutral values.
-  judgeFactor               Float    @default(1)
-  firmSignalFactor          Float    @default(0)  // v3.1 seam
-  similaritySignalFactor    Float    @default(0)  // v3.2 seam
-  scoreVersion         String   @default("v1")
+  judgeFactor            Float    @default(1)
+  firmSignalFactor       Float    @default(0) // v3.1 seam
+  similaritySignalFactor Float    @default(0) // v3.2 seam
+  scoreVersion           String   @default("v1")
   // drivers (denormalized JSON for cheap reads): array of {label, weight, type, evidence}
-  drivers              Json?
+  drivers                Json?
   // raw snapshot stats — used by next-run drivers (e.g. dormant_to_active needs
   // prior recent30) and by replay/audit. Shape: { recent30, baselineMonthly,
   // topCategory, topCategoryShare, topCircuit, topCircuitShare }.
-  rawStats             Json?
+  rawStats               Json?
   // change deltas (precomputed at write); null if no prior snapshot in window
-  delta7d              Int?
-  delta30d             Int?
+  delta7d                Int?
+  delta30d               Int?
   // benchmark fields — null when cohort < 30
-  cohortSize           Int?
-  cohortP50            Int?
-  cohortMean           Float?
-  percentile           Float?
-  zScore               Float?
+  cohortSize             Int?
+  cohortP50              Int?
+  cohortMean             Float?
+  percentile             Float?
+  zScore                 Float?
   // total cases at time of snapshot
-  caseCount   Int
+  caseCount              Int
   // cases filed in trailing 12 months
-  recentCases Int
-  computedAt  DateTime @default(now())
+  recentCases            Int
+  computedAt             DateTime @default(now())
 
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, computedAt])
   @@map("risk_scores")
 }
 
 model Event {
-  id        String   @id @default(cuid())
-  caseId    String
+  id         String   @id @default(cuid())
+  caseId     String
   // "case_filed" | "case_terminated" | "motion" | "ruling" | "settlement"
-  type      String
+  type       String
   occurredAt DateTime
-  payload   Json?
+  payload    Json?
 
-  caseRef   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseRef Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([caseId, occurredAt])
   @@map("events")
 }
 
-model Alert {
-  id          String   @id @default(cuid())
-  companyId   String
-  // "new_case" | "case_spike" | "risk_jump"
-  type        String
-  severity    String   // info | warn | critical
-  title       String
-  body        String
-  // relevant case id(s) as JSON for easy linking from the UI
-  refs        Json?
-  createdAt   DateTime @default(now())
-  read        Boolean  @default(false)
+// SEC 8-K filings (and a few other form types we may add later) for the
+// public-company subset of our universe. Used by the backtest harness as
+// ground truth for material litigation events. See sub-project F.
+model SecEdgarFiling {
+  id              String   @id @default(cuid())
+  companyId       String
+  cik             String
+  // SEC accession number, e.g. "0001628280-24-008534" — globally unique.
+  accession       String   @unique
+  // "8-K" today; schema supports adding "10-K", "10-Q" etc. later.
+  formType        String
+  filedAt         DateTime
+  // 8-K items declared on the cover page, e.g. ["1.01", "8.01"].
+  items           String[]
+  // Public archive URL on sec.gov for the primary document.
+  primaryDocUrl   String?
+  // Raw text excerpt from the items most likely to contain material
+  // events. Capped at ~10KB; we don't store full filings.
+  itemTextExcerpt String?
+  fetchedAt       DateTime @default(now())
 
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  events  MaterialEvent[]
+
+  @@index([companyId, filedAt])
+  @@index([formType, filedAt])
+  @@map("sec_edgar_filings")
+}
+
+// Material litigation events extracted from 8-K item text by a deterministic
+// regex/keyword classifier. v1 only; future versions may layer ML.
+model MaterialEvent {
+  id         String   @id @default(cuid())
+  filingId   String
+  // litigation_filed | settlement_disclosed | judgment_against |
+  // judgment_for | dismissed | regulatory_inquiry | other_litigation
+  eventType  String
+  // Optional dollar amount if disclosed (best-effort regex extract).
+  amountUsd  Decimal? @db.Decimal(14, 2)
+  // Confidence 0..1 from the classifier. Hand-rule v1 produces 0.5 (single
+  // regex hit) or 0.9 (multiple co-occurring signals).
+  confidence Float
+  // Short snippet of the 8-K text that fired the classifier (for audit).
+  snippet    String
+
+  filing SecEdgarFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId])
+  @@index([eventType])
+  @@map("material_events")
+}
+
+// Walk-forward backtest observations. One row per (anchor date × company).
+// Ephemeral — wiped between backtest runs. Persisted (not in-memory) because
+// runs are long and we want to inspect raw observations after the fact.
+model BacktestObservation {
+  id                String   @id @default(cuid())
+  // The historical "as-of" date the score was computed at.
+  anchorDate        DateTime
+  companyId         String
+  scoreAtAnchor     Int
+  band              String
+  caseCountAtAnchor Int
+  // Forward windows: did the company file a material-event 8-K in
+  // (anchorDate, anchorDate + N days]? Plus event count and total disclosed
+  // amount across the window.
+  hadEvent30        Boolean
+  hadEvent90        Boolean
+  hadEvent180       Boolean
+  eventCount90      Int
+  totalAmountUsd90  Decimal? @db.Decimal(16, 2)
+  // Methodology version that produced scoreAtAnchor.
+  scoreVersion      String
+  computedAt        DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([anchorDate, companyId, scoreVersion])
+  @@index([anchorDate])
+  @@index([companyId])
+  @@map("backtest_observations")
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  companyId String
+  // "new_case" | "case_spike" | "risk_jump"
+  type      String
+  severity  String // info | warn | critical
+  title     String
+  body      String
+  // relevant case id(s) as JSON for easy linking from the UI
+  refs      Json?
+  createdAt DateTime @default(now())
+  read      Boolean  @default(false)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([createdAt])
   @@index([companyId])
