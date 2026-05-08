@@ -46,12 +46,22 @@ async function main() {
     if (events.length === 0) continue;
     withEvents++;
     for (const e of events) {
+      // Sanity cap: amounts above $100B are almost certainly regex noise
+      // (e.g. share counts, market caps, year tokens picked up as "$2026").
+      // Schema's Decimal(14,2) tops out near $1T, so we cap below that
+      // anyway. The largest real corporate-litigation settlement on
+      // record is ~$200B (cumulative tobacco master settlement); single
+      // 8-Ks rarely disclose more than a few billion.
+      const amount =
+        e.amountUsd != null && e.amountUsd > 0 && e.amountUsd < 100_000_000_000
+          ? new Prisma.Decimal(e.amountUsd)
+          : null;
       rows.push({
         filingId: f.id,
         eventType: e.eventType,
         confidence: e.confidence,
         snippet: e.snippet,
-        amountUsd: e.amountUsd != null ? new Prisma.Decimal(e.amountUsd) : null,
+        amountUsd: amount,
       });
     }
   }
