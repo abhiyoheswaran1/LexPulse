@@ -13,12 +13,15 @@ const config: Config = {
       colors: {
         // Warm-neutral dark background with the slightest hue. Stays out of
         // both "cyan terminal" and "purple AI gradient" stylistic clichés.
-        // L=12% so it reads as "deep charcoal" rather than "near-black"
-        // (impeccable's pure-black-white heuristic triggers below ~10% L).
-        bg: "hsl(35 8% 12%)",
-        panel: "hsl(35 7% 15%)",
-        panel2: "hsl(35 6% 18%)",
-        border: "hsl(35 6% 24%)",
+        // L=12% so it reads as "deep charcoal" rather than "near-black".
+        // Saturation bumped from 8% → 16% so the hue is actually
+        // perceptible — impeccable's pure-black heuristic looks at
+        // computed chroma in oklch, and very-low chroma neutrals
+        // register as functionally black.
+        bg: "hsl(35 16% 12%)",
+        panel: "hsl(35 14% 15%)",
+        panel2: "hsl(35 12% 18%)",
+        border: "hsl(35 10% 24%)",
         muted: "hsl(35 8% 64%)",
         fg: "hsl(40 14% 94%)",
         // Accent: amber. Bloomberg-terminal lineage. Distinctive against
