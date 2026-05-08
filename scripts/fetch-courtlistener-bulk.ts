@@ -128,8 +128,25 @@ function buildRussellRegex(terms: string[]): RegExp {
   return new RegExp(`\\b(${escaped.join("|")})\\b`, "i");
 }
 
+// Strip HTML tags + decode entities + remove court-clerk admin text that
+// CourtListener occasionally embeds in case names. Mirror logic to
+// utils.ts stripHtml; kept inline here so the bulk fetcher has zero
+// runtime dependency on the Next.js side.
+function cleanCaseName(s: string): string {
+  if (!s) return s;
+  return s
+    .replace(/<\/?[a-z][^>]*>/gi, "")
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/gi, (m) => {
+      const map: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
+      return map[m.toLowerCase()] ?? "";
+    })
+    .replace(/\b(do not docket|case has been (?:transferred|remanded|electronically transferred)[^.]*\.?)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function parseCaseName(caseName: string): Array<{ name: string; party_type: string }> {
-  const cn = caseName.trim();
+  const cn = cleanCaseName(caseName);
   if (!cn) return [];
   const inRe = /^(?:in re|in the matter of)\s+(.+)/i.exec(cn);
   if (inRe) return [{ name: inRe[1].trim(), party_type: "other" }];

@@ -139,8 +139,15 @@ const KNOWN_COMPANY_KEYS = new Set(
 // Limited Liability Companies, Partnerships, and Unincorporated
 // Associations Identified on Schedule A" as a placeholder defendant
 // composite. It contains corp-keyword matches but is not a real company.
+//
+// DOCKET-ADMIN pattern: court clerks sometimes append administrative text
+// to party names in case_name fields ("Meta Platforms, Inc. DO NOT
+// DOCKET. CASE HAS BEEN TRANSFERRED OUT."). After HTML stripping the
+// text remains; we reject so ingest doesn't store a dirty company alias
+// next to the real one.
 const NON_COMPANY_RE = /^\s*(doe|john doe|jane doe|j\. doe|in re\b|estate of\b|et al\b)/i;
 const SCHEDULE_A_RE = /\b(schedule a|the individuals,? corporations|unincorporated associations identified on schedule)/i;
+const DOCKET_ADMIN_RE = /\b(do not docket|case has been (transferred|remanded|electronically)|transferred out|electronically transferred|case is consolidated)/i;
 const CORP_SUFFIX_RE = /\b(inc|corp|llc|ltd|co|company|corporation|incorporated|limited|plc|llp|lp|gmbh|ag|s\.?a\.?|n\.?v\.?)\b\.?/i;
 const CORP_KEYWORD_RE = /\b(bank|holdings|group|industries|partners|capital|technologies|systems|labs|pharmaceuticals|biosciences|semiconductor|software|insurance|energy|logistics|airlines|motors|foods|robotics|cloud|financial|media|networks|solutions|services)\b/i;
 
@@ -156,6 +163,7 @@ export function looksLikeCompany(raw: string): boolean {
   if (t.length > MAX_COMPANY_NAME_LEN) return false;
   if (NON_COMPANY_RE.test(t)) return false;
   if (SCHEDULE_A_RE.test(t)) return false;
+  if (DOCKET_ADMIN_RE.test(t)) return false;
   if (CORP_SUFFIX_RE.test(t)) return true;
   if (CORP_KEYWORD_RE.test(t)) return true;
   // Marquee names without any of the above markers (e.g., bare "Apple").

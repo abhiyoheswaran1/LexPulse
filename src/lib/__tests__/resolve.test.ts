@@ -62,6 +62,16 @@ describe("looksLikeCompany", () => {
     expect(looksLikeCompany(longName)).toBe(false);
   });
 
+  it("rejects court-clerk admin text appended to party names", () => {
+    expect(
+      looksLikeCompany("Meta Platforms, Inc. DO NOT DOCKET. CASE HAS BEEN TRANSFERRED OUT."),
+    ).toBe(false);
+    expect(looksLikeCompany("Visa, Inc. Do not docket. Case has been remanded.")).toBe(false);
+    expect(
+      looksLikeCompany("Apple, Inc. Do not docket. Case has been electronically transferred out."),
+    ).toBe(false);
+  });
+
   it("rejects empty / whitespace", () => {
     expect(looksLikeCompany("")).toBe(false);
     expect(looksLikeCompany("   ")).toBe(false);
