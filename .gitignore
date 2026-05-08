@@ -7,3 +7,4 @@ dist
 .DS_Store
 _pm/
 tsconfig.tsbuildinfo
+.vercel
