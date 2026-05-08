@@ -21,6 +21,31 @@ const ENTITY_MAP: Record<string, string> = {
   "&nbsp;": " ",
 };
 
+// Slugify a case name to match CourtListener's URL convention. Their
+// docket URLs are /docket/<id>/<slug>/ and they 404 if the slug is
+// missing — a bare /docket/<id>/ does not redirect. The slug is
+// alphanumeric + dashes, lowercase, derived from the case name.
+//
+// Example: "PAYNE v. BEECH-NUT NUTRITION COMPANY"
+//   → "payne-v-beech-nut-nutrition-company"
+export function slugify(s: string): string {
+  if (!s) return "";
+  return s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
+}
+
+// Build a CourtListener docket URL. Returns null if there's no sourceId.
+export function courtListenerUrl(sourceId: string | null, caseName: string | null): string | null {
+  if (!sourceId) return null;
+  const slug = slugify(caseName ?? "");
+  if (!slug) return `https://www.courtlistener.com/docket/${sourceId}/`;
+  return `https://www.courtlistener.com/docket/${sourceId}/${slug}/`;
+}
+
 export function stripHtml(s: string): string {
   if (!s) return s;
   if (s.indexOf("<") === -1 && s.indexOf("&") === -1) return s;

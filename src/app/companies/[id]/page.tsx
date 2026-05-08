@@ -6,7 +6,7 @@ import { ScoreGauge } from "@/components/ScoreGauge";
 import { CaseTimeline } from "@/components/CaseTimeline";
 import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
-import { formatDate, formatRelative, cn } from "@/lib/utils";
+import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
 import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -199,25 +199,22 @@ export default async function CompanyPage({ params }: { params: { id: string } }
               </thead>
               <tbody className="divide-y divide-border">
                 {cases.slice(0, 100).map((c) => {
-                  const courtListenerUrl = c.sourceId
-                    ? `https://www.courtlistener.com/docket/${c.sourceId}/`
-                    : null;
-                  const RowTag = courtListenerUrl ? "a" : "tr";
+                  const clUrl = courtListenerUrl(c.sourceId ?? null, c.caseName);
                   // Render the row as an anchor when we have a source id;
                   // wrap in <tr> for layout via display:contents-equivalent.
                   return (
                     <tr
                       key={c.id}
                       className={
-                        courtListenerUrl
+                        clUrl
                           ? "group hover:bg-panel2/60 transition cursor-pointer"
                           : "hover:bg-panel2/40 transition"
                       }
                     >
                       <td className="px-4 py-3">
-                        {courtListenerUrl ? (
+                        {clUrl ? (
                           <Link
-                            href={courtListenerUrl}
+                            href={clUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block group-hover:text-accent transition"
@@ -252,9 +249,9 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                       </td>
                       <td className="px-4 py-3 text-xs text-muted tabular text-right">{formatDate(c.dateFiled)}</td>
                       <td className="px-3 py-3 text-muted/60 group-hover:text-accent transition">
-                        {courtListenerUrl && (
+                        {clUrl && (
                           <Link
-                            href={courtListenerUrl}
+                            href={clUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label="Open on CourtListener"

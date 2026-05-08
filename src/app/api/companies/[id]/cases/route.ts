@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { courtListenerUrl } from "@/lib/utils";
 
 export async function GET(_req: Request, ctx: { params: { id: string } }) {
   const links = await prisma.companyCaseLink.findMany({
@@ -20,9 +21,7 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
     cause: l.caseRef.cause,
     judge: l.caseRef.judge?.name ?? null,
     role: l.role,
-    courtListenerUrl: l.caseRef.sourceId
-      ? `https://www.courtlistener.com/docket/${l.caseRef.sourceId}/`
-      : null,
+    courtListenerUrl: courtListenerUrl(l.caseRef.sourceId, l.caseRef.caseName),
   }));
 
   return NextResponse.json({ cases });
