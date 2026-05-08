@@ -22,12 +22,14 @@ import path from "node:path";
 // the version bump for the keys we read; should v4 drift, the `pick(...)`
 // fallbacks below pick up alternate names.
 const API_BASE = "https://www.courtlistener.com/api/rest/v4";
-const POLITENESS_MS = 250; // wait between requests
+const POLITENESS_MS = 600; // 1.7 req/s — well under the per-burst throttle
 const PER_NAME_PAGE_SIZE = 20;
-// 50 pages × 20 = up to 1000 dockets per Russell-1000 query term. With 68
-// query terms that's a 68K theoretical ceiling; the --limit flag and
-// in-run dedup-by-id usually cap actual yield closer to 30-50K.
-const PER_NAME_MAX_PAGES = 50;
+// Round-robin: visit each name in sequence, advance one page per visit,
+// then loop back. Spreads load across 68 names so any per-query throttle
+// recovers between visits, and we get broad coverage before depth.
+const MAX_ROUNDS = 50;            // up to 1000 dockets per name (50 × 20)
+const MAX_RETRY_SECONDS = 120;    // skip the term if Retry-After exceeds this
+const PER_TERM_RATE_RECOVERY_MS = 4000; // pause when we get rate-limited on a single term
 
 type Args = { out: string; limit: number };
 
@@ -72,33 +74,37 @@ function loadRussellQueryTerms(): string[] {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchPage(url: string, token: string | undefined): Promise<unknown> {
+type FetchResult = { ok: true; json: unknown } | { ok: false; rateLimited: boolean; retryAfter: number };
+
+async function fetchPage(url: string, token: string | undefined): Promise<FetchResult> {
   const headers: Record<string, string> = {
     "User-Agent": "LexPulse/0.1 (litigation risk scoring; +https://github.com/abhiyoheswaran1/LexPulse)",
     Accept: "application/json",
   };
   if (token) headers.Authorization = `Token ${token}`;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(url, { headers });
-    if (res.status === 200) return res.json();
+    if (res.status === 200) return { ok: true, json: await res.json() };
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get("Retry-After") ?? 60);
-      console.warn(`\nrate limited; sleeping ${retryAfter}s before retry`);
+      // If the API is asking us to wait longer than MAX_RETRY_SECONDS, give
+      // up on this term and let the caller round-robin to the next one.
+      if (retryAfter > MAX_RETRY_SECONDS) {
+        return { ok: false, rateLimited: true, retryAfter };
+      }
       await sleep(retryAfter * 1000);
       continue;
     }
     if (res.status >= 500) {
-      // transient server error, exponential backoff
       const wait = 2 ** attempt * 1000;
-      console.warn(`\n${res.status} on ${url}; retrying in ${wait}ms`);
       await sleep(wait);
       continue;
     }
     const body = await res.text().catch(() => "");
     throw new Error(`CourtListener ${res.status} on ${url}: ${body.slice(0, 200)}`);
   }
-  throw new Error(`exhausted retries: ${url}`);
+  return { ok: false, rateLimited: true, retryAfter: 60 };
 }
 
 // Defensive accessor: CourtListener fields drift over time. Try several keys.
@@ -203,37 +209,68 @@ async function main() {
   const out = fs.createWriteStream(args.out, { flags: "w" });
   const seen = new Set<string>();
   let written = 0;
-  let queryIdx = 0;
 
-  for (const q of queries) {
-    queryIdx++;
-    if (written >= args.limit) break;
+  // Round-robin state. Each query term has its own pagination cursor and
+  // a "live" flag — once a term gets a long Retry-After or runs out of
+  // pages, it's marked dead and the loop skips it.
+  type Term = { q: string; nextUrl: string | null; pages: number; alive: boolean };
+  const terms: Term[] = queries.map((q) => ({
+    q,
+    nextUrl: `${API_BASE}/search/?q=${encodeURIComponent(`"${q}"`)}&type=r&court__jurisdiction=F&order_by=dateFiled%20desc&page_size=${PER_NAME_PAGE_SIZE}`,
+    pages: 0,
+    alive: true,
+  }));
 
-    let url: string | null = `${API_BASE}/search/?q=${encodeURIComponent(`"${q}"`)}&type=r&court__jurisdiction=F&order_by=dateFiled%20desc&page_size=${PER_NAME_PAGE_SIZE}`;
-    let pages = 0;
+  let round = 0;
+  while (round < MAX_ROUNDS && written < args.limit) {
+    round++;
+    let anyLive = false;
+    for (const t of terms) {
+      if (!t.alive || !t.nextUrl) continue;
+      if (t.pages >= MAX_ROUNDS) continue;
+      if (written >= args.limit) break;
+      anyLive = true;
 
-    while (url && pages < PER_NAME_MAX_PAGES && written < args.limit) {
-      try {
-        const data = (await fetchPage(url, token)) as { results?: RawSearchResult[]; next?: string | null };
-        const results = data.results ?? [];
-        for (const r of results) {
-          if (written >= args.limit) break;
-          const docket = transformResult(r);
-          if (!docket) continue;
-          const key = String(docket.id);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.write(JSON.stringify(docket) + "\n");
-          written++;
+      const result = await fetchPage(t.nextUrl, token);
+      if (!result.ok) {
+        if (result.rateLimited) {
+          // Don't wait the full Retry-After here — round-robin past this
+          // term and let the natural cadence give it time to recover.
+          await sleep(PER_TERM_RATE_RECOVERY_MS);
         }
-        url = data.next ?? null;
-        pages++;
-        process.stdout.write(`\rquery ${queryIdx}/${queries.length} "${q}" — total ${written}/${args.limit} dockets`);
-        await sleep(POLITENESS_MS);
-      } catch (e) {
-        console.warn(`\nquery "${q}" page ${pages} failed:`, (e as Error).message);
-        break; // skip the rest of this term
+        // Mark dead until next round
+        t.alive = false;
+        continue;
       }
+
+      const data = result.json as { results?: RawSearchResult[]; next?: string | null };
+      const results = data.results ?? [];
+      for (const r of results) {
+        if (written >= args.limit) break;
+        const docket = transformResult(r);
+        if (!docket) continue;
+        const key = String(docket.id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.write(JSON.stringify(docket) + "\n");
+        written++;
+      }
+      t.nextUrl = data.next ?? null;
+      t.pages++;
+      if (!t.nextUrl) t.alive = false;
+
+      process.stdout.write(
+        `\rround ${round} term "${t.q}" page ${t.pages} — total ${written}/${args.limit} dockets`,
+      );
+      await sleep(POLITENESS_MS);
+    }
+    if (!anyLive) break;
+
+    // After each full round, re-arm any rate-limited terms so we retry them
+    // next round (the sleep between rounds gives CourtListener's per-term
+    // throttle time to recover).
+    for (const t of terms) {
+      if (!t.alive && t.nextUrl) t.alive = true;
     }
   }
 
