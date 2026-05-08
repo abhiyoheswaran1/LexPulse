@@ -11,7 +11,7 @@ export default function ApiDocsPage() {
     <div className="space-y-8 animate-fade-in">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Documentation</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-muted">Documentation</div>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">
             API reference
           </h1>
@@ -30,7 +30,7 @@ export default function ApiDocsPage() {
       </header>
 
       <Panel title="Overview" subtitle="Conventions for every endpoint below">
-        <ul className="text-sm space-y-2 leading-relaxed">
+        <ul className="text-sm space-y-2.5 leading-relaxed max-w-[68ch]">
           <Bullet>
             <span className="text-fg/90">Base URL.</span> All paths are relative to{" "}
             <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">
@@ -44,24 +44,27 @@ export default function ApiDocsPage() {
           <Bullet>
             <span className="text-fg/90">Versioning.</span> Score-shape responses include a{" "}
             <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">version</code>{" "}
-            field (
-            <code className="font-mono text-xs">v1.0</code> /{" "}
-            <code className="font-mono text-xs">v2.0</code> /{" "}
-            <code className="font-mono text-xs">v3.0</code>). Pin with{" "}
-            <code className="font-mono text-xs">?version=vN</code> for replay.
+            field. Pin with{" "}
+            <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">?version=vN</code>
+            {" "}for replay.
           </Bullet>
           <Bullet>
             <span className="text-fg/90">Errors.</span>{" "}
-            <code className="font-mono text-xs">404</code> with{" "}
-            <code className="font-mono text-xs">{`{"error": "not_found"}`}</code> for missing
-            resources;{" "}
-            <code className="font-mono text-xs">{`{"error": "no_score"}`}</code> when an entity
-            exists but lacks a snapshot for the requested version.
+            <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">404</code>{" "}
+            with{" "}
+            <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">
+              {`{"error":"not_found"}`}
+            </code>
+            {" "}for missing resources;{" "}
+            <code className="font-mono text-xs bg-panel2 px-1.5 py-0.5 rounded">
+              {`{"error":"no_score"}`}
+            </code>
+            {" "}when an entity exists but lacks a snapshot.
           </Bullet>
           <Bullet>
             <span className="text-fg/90">Attribution.</span> Litigation data flows from
-            CourtListener / Free Law Project, licensed CC BY-ND 4.0. Every score response
-            includes a <code className="font-mono text-xs">sources</code> block citing the upstream.
+            CourtListener / Free Law Project, licensed CC BY-ND 4.0. Every score response includes
+            a sources block citing the upstream.
           </Bullet>
         </ul>
       </Panel>
@@ -212,7 +215,7 @@ export default function ApiDocsPage() {
       />
 
       <Panel title="Coming soon" subtitle="Tracked in the platform-shell milestone">
-        <ul className="space-y-2 text-sm leading-relaxed">
+        <ul className="space-y-2 text-sm leading-relaxed max-w-[68ch]">
           <Bullet>API tokens with per-key rate limits</Bullet>
           <Bullet>Webhook delivery for new alerts</Bullet>
           <Bullet>Streaming risk-snapshot diffs over server-sent events</Bullet>
@@ -250,7 +253,7 @@ function Endpoint({
       title={path}
       subtitle={description}
       right={
-        <span className="font-mono text-[10px] tracking-[0.16em] uppercase rounded-md border border-accent/40 bg-accent/10 text-accent px-2 py-0.5">
+        <span className="font-mono text-[11px] tracking-[0.16em] uppercase rounded-md border border-accent/40 bg-accent/10 text-accent px-2 py-0.5">
           {method}
         </span>
       }
@@ -258,13 +261,13 @@ function Endpoint({
       <div className="space-y-4">
         {params && params.length > 0 && (
           <div>
-            <div className="text-[11px] uppercase tracking-[0.14em] text-muted mb-2">
+            <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">
               Query parameters
             </div>
             <ul className="space-y-1.5 text-sm">
               {params.map((p) => (
                 <li key={p.name} className="grid grid-cols-[100px_1fr] gap-3">
-                  <code className="font-mono text-[11px] tabular text-fg/90">{p.name}</code>
+                  <code className="font-mono text-xs tabular text-fg/90">{p.name}</code>
                   <span className="text-muted text-xs leading-relaxed">{p.desc}</span>
                 </li>
               ))}
@@ -272,7 +275,7 @@ function Endpoint({
           </div>
         )}
         <div>
-          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-muted mb-2">
+          <div className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-muted mb-2">
             <Code2 className="size-3" />
             <span>Response (200)</span>
           </div>

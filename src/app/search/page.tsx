@@ -34,7 +34,7 @@ export default function SearchPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       <header>
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Discovery</div>
+        <div className="text-xs uppercase tracking-[0.18em] text-muted">Discovery</div>
         <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">Search</h1>
         <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
           Find a company. Variants like &ldquo;Acme Inc.&rdquo; and &ldquo;ACME Corporation&rdquo;

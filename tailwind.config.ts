@@ -11,20 +11,23 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Tinted toward our accent hue for warmth — pure-black backgrounds
-        // read as harsh on financial-dashboard surfaces, slight brand tint
-        // makes the panel hierarchy more legible.
-        bg: "hsl(220 22% 6%)",
-        panel: "hsl(220 18% 9%)",
-        panel2: "hsl(220 16% 12%)",
-        border: "hsl(220 14% 17%)",
-        muted: "hsl(220 8% 62%)",
-        fg: "hsl(220 15% 94%)",
-        accent: "hsl(190 95% 55%)",
-        ok: "hsl(150 70% 48%)",
-        warn: "hsl(45 95% 58%)",
-        bad: "hsl(0 80% 62%)",
-        elev: "hsl(28 92% 60%)",
+        // Background sits just shy of black with a brand-hued tint —
+        // pure #000 reads as harsh on financial-dashboard surfaces, but
+        // we don't want it visibly blue either. Slight neutral warmth.
+        bg: "hsl(225 16% 8%)",
+        panel: "hsl(225 13% 11%)",
+        panel2: "hsl(225 11% 14%)",
+        border: "hsl(225 10% 19%)",
+        muted: "hsl(225 8% 64%)",
+        fg: "hsl(225 14% 95%)",
+        // Accent: deliberately a sophisticated teal, not the neon cyan that
+        // immediately reads as "AI-generated SaaS". Lower saturation, mid
+        // value — distinct from band colors (ok green, warn amber, bad red).
+        accent: "hsl(178 55% 50%)",
+        ok: "hsl(155 55% 50%)",
+        warn: "hsl(42 80% 58%)",
+        bad: "hsl(0 72% 62%)",
+        elev: "hsl(28 80% 58%)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],

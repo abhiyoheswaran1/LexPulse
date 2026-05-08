@@ -44,15 +44,15 @@ export function BenchmarkPanel({ benchmark, score }: { benchmark: Benchmark; sco
         <div className="space-y-1.5">
           <div className="relative h-2 rounded-full bg-panel2 overflow-hidden">
             <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent/70 to-accent/30 rounded-full"
-              style={{ width: `${pct}%` }}
+              className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-accent/70 to-accent/30 rounded-full origin-left transition-transform duration-700"
+              style={{ transform: `scaleX(${Math.max(0, Math.min(1, pct / 100))})` }}
             />
             <div
               className="absolute -top-1 -bottom-1 w-0.5 bg-fg shadow-glow"
               style={{ left: `calc(${pct}% - 1px)` }}
             />
           </div>
-          <div className="flex justify-between text-[10px] text-muted/70 tabular">
+          <div className="flex justify-between text-xs text-muted/70 tabular">
             <span>0</span>
             <span>50</span>
             <span>100</span>
@@ -71,7 +71,7 @@ export function BenchmarkPanel({ benchmark, score }: { benchmark: Benchmark; sco
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{label}</div>
+      <div className="text-xs uppercase tracking-[0.14em] text-muted">{label}</div>
       <div className="font-semibold tabular mt-1">{value}</div>
     </div>
   );

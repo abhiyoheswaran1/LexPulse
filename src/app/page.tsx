@@ -80,7 +80,7 @@ export default async function DashboardPage() {
     <div className="space-y-8 animate-fade-in">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Overview</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-muted">Overview</div>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-1.5">
             Litigation pulse, scored.
           </h1>
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
                       <div className="flex items-start gap-2.5">
                         <Bell className={`size-3.5 mt-1 shrink-0 ${sev}`} />
                         <div className="min-w-0 flex-1">
-                          <div className="text-[11px] text-muted tabular">
+                          <div className="text-xs text-muted tabular">
                             {a.company.name} · {formatRelative(a.createdAt)}
                           </div>
                           <div className="text-sm group-hover:text-accent truncate transition">
@@ -197,12 +197,12 @@ function Kpi({
 }) {
   return (
     <div className="rounded-xl border border-border bg-panel/60 p-5 transition hover:bg-panel/80">
-      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
+      <div className="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted">
         <span>{label}</span>
         <span className="text-muted/60">{icon}</span>
       </div>
       <div className="mt-3 font-display text-3xl font-semibold tabular tracking-tight">{value}</div>
-      {hint && <div className="text-[11px] text-muted mt-1.5">{hint}</div>}
+      {hint && <div className="text-xs text-muted mt-1.5">{hint}</div>}
     </div>
   );
 }
@@ -222,7 +222,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
     return (
       <div className="text-sm text-muted py-8 text-center">
         No data yet. Run the CourtListener ingest:
-        <code className="text-fg/80 block mt-2 font-mono text-[11px]">
+        <code className="text-fg/80 block mt-2 font-mono text-xs">
           gh workflow run &quot;Ingest CourtListener (weekly)&quot;
         </code>
       </div>
@@ -231,7 +231,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
   return (
     <div className="overflow-hidden -mx-5 -mb-5">
       <table className="w-full text-sm">
-        <thead className="bg-transparent text-[11px] uppercase tracking-[0.14em] text-muted border-b border-border">
+        <thead className="bg-transparent text-xs uppercase tracking-[0.14em] text-muted border-b border-border">
           <tr>
             <th className="text-left font-normal px-5 py-2.5">Company</th>
             <th className="text-right font-normal px-4 py-2.5">Cases</th>
@@ -247,7 +247,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
                 <Link href={`/companies/${r.id}`} className="hover:text-accent block">
                   <span className="text-fg/95">{r.name}</span>
                   {r.ticker && (
-                    <span className="text-muted ml-2 tabular text-[11px]">{r.ticker}</span>
+                    <span className="text-muted ml-2 tabular text-xs">{r.ticker}</span>
                   )}
                 </Link>
               </td>

@@ -43,14 +43,14 @@ function Sidebar() {
         </div>
         <div>
           <div className="text-sm font-semibold tracking-tight font-display">LexPulse</div>
-          <div className="text-[11px] uppercase tracking-[0.14em] text-muted">litigation intel</div>
+          <div className="text-xs uppercase tracking-[0.14em] text-muted">litigation intel</div>
         </div>
       </div>
       <nav className="p-3 space-y-0.5 text-sm">
         <NavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
         <NavItem href="/search" icon={<Search className="size-4" />} label="Search" />
         <NavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" />
-        <NavItem href="/api" icon={<span className="font-mono text-[11px]">{`{}`}</span>} label="API" />
+        <NavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
       </nav>
       <div className="px-5 py-4 mt-4 text-xs text-muted leading-relaxed border-t border-border">
         <div className="text-fg/80 font-medium mb-1">v3.0 methodology</div>
@@ -81,7 +81,7 @@ function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; l
 function TopBar() {
   return (
     <div className="h-12 border-b border-border bg-panel/60 backdrop-blur flex items-center justify-between px-8">
-      <div className="text-[11px] text-muted tracking-[0.16em] uppercase">Litigation intelligence</div>
+      <div className="text-xs text-muted tracking-[0.16em] uppercase">Litigation intelligence</div>
       <div className="flex items-center gap-2 text-xs text-muted">
         <span className="relative flex size-1.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />

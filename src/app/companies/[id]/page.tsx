@@ -73,18 +73,18 @@ export default async function CompanyPage({ params }: { params: { id: string } }
       <header className="rounded-xl border border-border bg-panel/60 p-7">
         <div className="flex items-start justify-between gap-8 flex-wrap">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-muted">Company</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-muted">Company</div>
             <h1 className="font-display text-4xl font-semibold tracking-tight mt-2 leading-[1.05]">
               {co.name}
             </h1>
             <div className="mt-4 flex items-center gap-3 flex-wrap text-xs text-muted">
               {co.ticker && (
-                <span className="rounded-md border border-border bg-panel2 px-2 py-1 tabular text-fg/80 text-[11px]">
+                <span className="rounded-md border border-border bg-panel2 px-2 py-1 tabular text-fg/80 text-xs">
                   {co.ticker}
                 </span>
               )}
               {co.sector?.label && (
-                <span className="rounded-full border border-border px-2.5 py-0.5 text-[11px]">
+                <span className="rounded-full border border-border px-2.5 py-0.5 text-xs">
                   {co.sector.label}
                 </span>
               )}
@@ -164,10 +164,10 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                       <span className="text-fg/80 truncate pr-2">{c.name}</span>
                       <span className="text-muted tabular">{c.count}</span>
                     </div>
-                    <div className="h-1 bg-panel2 rounded-full overflow-hidden">
+                    <div className="relative h-1 bg-panel2 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-accent/80 to-accent/40 rounded-full"
-                        style={{ width: `${pct}%` }}
+                        className="absolute inset-0 bg-gradient-to-r from-accent/80 to-accent/40 rounded-full origin-left"
+                        style={{ transform: `scaleX(${Math.max(0, Math.min(1, pct / 100))})` }}
                       />
                     </div>
                   </li>
@@ -184,7 +184,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         ) : (
           <div className="overflow-hidden rounded-md border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-panel2 text-[11px] uppercase tracking-[0.14em] text-muted">
+              <thead className="bg-panel2 text-xs uppercase tracking-[0.14em] text-muted">
                 <tr>
                   <th className="text-left font-normal px-4 py-2.5">Case</th>
                   <th className="text-left font-normal px-4 py-2.5">Court</th>
@@ -198,12 +198,12 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                   <tr key={c.id} className="hover:bg-panel2/40 transition">
                     <td className="px-4 py-3">
                       <div className="font-medium text-fg/90 truncate max-w-[420px]">{c.caseName}</div>
-                      <div className="text-[11px] text-muted tabular mt-0.5">{c.docketNumber}</div>
+                      <div className="text-xs text-muted tabular mt-0.5">{c.docketNumber}</div>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted tabular">{c.court ?? "—"}</td>
                     <td className="px-4 py-3 text-xs">
                       {c.natureOfSuit ? (
-                        <span className="rounded-md border border-border bg-panel2 px-2 py-0.5 text-[11px]">
+                        <span className="rounded-md border border-border bg-panel2 px-2 py-0.5 text-xs">
                           {c.natureOfSuit}
                         </span>
                       ) : (
@@ -268,9 +268,9 @@ function Metric({
 }) {
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{label}</div>
+      <div className="text-xs uppercase tracking-[0.14em] text-muted">{label}</div>
       <div className="mt-1.5 text-xl font-semibold tabular tracking-tight text-fg">{value}</div>
-      {hint && <div className="text-[11px] text-muted mt-0.5">{hint}</div>}
+      {hint && <div className="text-xs text-muted mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -321,15 +321,15 @@ function FactorList({ score }: { score: ScoreRow }) {
   return (
     <ul className="w-56 space-y-2 text-xs">
       {rows.map((r) => (
-        <li key={r.label} className="grid grid-cols-[80px_1fr_44px] items-center gap-2">
+        <li key={r.label} className="grid grid-cols-[88px_1fr_44px] items-center gap-2">
           <span className="text-muted">{r.label}</span>
-          <div className="h-1 bg-panel2 rounded-full overflow-hidden">
+          <div className="relative h-1 bg-panel2 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-accent to-accent/50 rounded-full transition-[width] duration-700"
-              style={{ width: `${Math.round(r.v * 100)}%` }}
+              className="absolute inset-y-0 left-0 right-0 bg-gradient-to-r from-accent to-accent/40 rounded-full origin-left transition-transform duration-700"
+              style={{ transform: `scaleX(${Math.max(0, Math.min(1, r.v))})` }}
             />
           </div>
-          <span className="text-fg/80 tabular text-right text-[11px]">
+          <span className="text-fg/80 tabular text-right text-xs">
             {r.raw ?? Math.round(r.v * 100)}
           </span>
         </li>

@@ -101,7 +101,7 @@ export function DriversPanel({ drivers }: { drivers: Driver[] }) {
             >
               <Icon className="size-4 mt-0.5 shrink-0 opacity-90" />
               <span className="flex-1 text-sm leading-snug">{d.label}</span>
-              <span className="tabular text-[11px] opacity-70 shrink-0">
+              <span className="tabular text-xs opacity-70 shrink-0">
                 w{d.weight.toFixed(2)}
               </span>
             </li>

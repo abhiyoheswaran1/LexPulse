@@ -31,11 +31,11 @@ export function RiskBadge({
     >
       <span className="size-1.5 rounded-full bg-current opacity-80" />
       <span className="tabular font-semibold">{score}</span>
-      <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{band}</span>
+      <span className="text-[11px] uppercase tracking-[0.16em] opacity-70">{band}</span>
       {delta !== undefined && delta !== null && delta !== 0 && (
         <span
           className={cn(
-            "inline-flex items-center gap-0.5 ml-1 text-[10px] tabular font-semibold",
+            "inline-flex items-center gap-0.5 ml-1 text-[11px] tabular font-semibold",
             delta > 0 ? "text-bad" : "text-ok",
           )}
         >

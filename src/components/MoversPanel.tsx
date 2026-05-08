@@ -36,7 +36,7 @@ export function MoversPanel({ rows }: { rows: MoverRow[] }) {
                     {r.name}
                   </div>
                   {r.ticker && (
-                    <div className="text-[11px] text-muted tabular">{r.ticker}</div>
+                    <div className="text-xs text-muted tabular">{r.ticker}</div>
                   )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
