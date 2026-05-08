@@ -17,7 +17,11 @@ import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 
-const API_BASE = "https://www.courtlistener.com/api/rest/v3";
+// CourtListener deprecated v3 for new users (2024-2025 rollout). v4 is the
+// supported endpoint. Field names in search responses are unchanged across
+// the version bump for the keys we read; should v4 drift, the `pick(...)`
+// fallbacks below pick up alternate names.
+const API_BASE = "https://www.courtlistener.com/api/rest/v4";
 const POLITENESS_MS = 250; // wait between requests
 const PER_NAME_PAGE_SIZE = 20;
 const PER_NAME_MAX_PAGES = 3; // cap how deep we go for any single name
