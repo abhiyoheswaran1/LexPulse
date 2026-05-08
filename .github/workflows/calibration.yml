@@ -1,0 +1,69 @@
+name: Calibration backtest (weekly)
+
+# Refreshes the SEC 8-K corpus, runs the material-event classifier, and
+# reruns the walk-forward backtest. Output (IC, hit rate by band, decile
+# lift) goes to /tmp/backtest-output.json and is uploaded as an artifact
+# so methodology numbers are reproducible from CI alone.
+
+on:
+  schedule:
+    # Sunday 09:00 UTC — after weekly ingest (Sat 06:00) + nightly risk
+    # (07:00 daily). Calibration uses both.
+    - cron: "0 9 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: calibration
+  cancel-in-progress: false
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      EDGAR_USER_AGENT: ${{ secrets.EDGAR_USER_AGENT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: CIK linkage + 8-K backfill (idempotent on accession #)
+        run: npm run fetch:edgar -- --link --filings
+
+      - name: Extract material events from 8-K excerpts
+        run: npm run extract:material-events
+
+      - name: Walk-forward backtest (24 anchors, v3)
+        run: npm run backtest
+
+      - name: Upload backtest output
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-output
+          path: /tmp/backtest-output.json
+          retention-days: 90
+
+      - name: Print summary to logs
+        if: always()
+        run: |
+          if [ -f /tmp/backtest-output.json ]; then
+            node -e '
+              const j = JSON.parse(require("fs").readFileSync("/tmp/backtest-output.json","utf8"));
+              console.log("=== Calibration ===");
+              console.log("Observations:", j.nObservations);
+              for (const w of ["30d","90d","180d"]) {
+                const ic = j.ic[w];
+                console.log(`IC ${w}: mean=${ic.mean.toFixed(4)} std=${ic.std.toFixed(4)} n=${ic.n}`);
+              }
+            '
+          fi

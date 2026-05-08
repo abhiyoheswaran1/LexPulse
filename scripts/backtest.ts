@@ -33,6 +33,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/db";
 import { computeRiskV3, type CaseLiteV3 } from "../src/lib/risk";
 import type { JudgeProfileLite } from "../src/lib/judges";
+import {
+  hitRateByBand,
+  spearman,
+  decileLift,
+  meanStd,
+  type BacktestObs,
+} from "../src/lib/backtest-stats";
 
 const ONE_DAY = 86400000;
 const SCORE_VERSION = "v3";
@@ -241,90 +248,6 @@ async function runAnchor(
   return { inserted: rows.length };
 }
 
-// --- Statistics ---
-
-type Obs = {
-  scoreAtAnchor: number;
-  band: string;
-  hadEvent30: boolean;
-  hadEvent90: boolean;
-  hadEvent180: boolean;
-};
-
-function hitRateByBand(obs: Obs[], window: 30 | 90 | 180) {
-  const buckets = new Map<string, { yes: number; total: number }>();
-  for (const o of obs) {
-    const had = window === 30 ? o.hadEvent30 : window === 90 ? o.hadEvent90 : o.hadEvent180;
-    const cur = buckets.get(o.band) ?? { yes: 0, total: 0 };
-    cur.total++;
-    if (had) cur.yes++;
-    buckets.set(o.band, cur);
-  }
-  const total = obs.length;
-  const baseRate = obs.filter((o) => (window === 30 ? o.hadEvent30 : window === 90 ? o.hadEvent90 : o.hadEvent180)).length / Math.max(total, 1);
-  const out: Record<string, { n: number; hits: number; rate: number; lift: number }> = {};
-  for (const [band, { yes, total: n }] of buckets) {
-    const rate = n > 0 ? yes / n : 0;
-    out[band] = {
-      n,
-      hits: yes,
-      rate,
-      lift: baseRate > 0 ? rate / baseRate : 0,
-    };
-  }
-  return { baseRate, byBand: out };
-}
-
-// Spearman rank correlation. Tie-aware via average ranks.
-function spearman(xs: number[], ys: number[]): number {
-  if (xs.length !== ys.length || xs.length < 3) return 0;
-  const rank = (arr: number[]): number[] => {
-    const idx = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
-    const ranks = new Array<number>(arr.length);
-    let i = 0;
-    while (i < idx.length) {
-      let j = i;
-      while (j + 1 < idx.length && idx[j + 1].v === idx[i].v) j++;
-      const avg = (i + j) / 2 + 1;
-      for (let k = i; k <= j; k++) ranks[idx[k].i] = avg;
-      i = j + 1;
-    }
-    return ranks;
-  };
-  const rx = rank(xs);
-  const ry = rank(ys);
-  const n = xs.length;
-  const meanRx = (n + 1) / 2;
-  const meanRy = meanRx;
-  let num = 0, dx = 0, dy = 0;
-  for (let i = 0; i < n; i++) {
-    const a = rx[i] - meanRx;
-    const b = ry[i] - meanRy;
-    num += a * b;
-    dx += a * a;
-    dy += b * b;
-  }
-  if (dx === 0 || dy === 0) return 0;
-  return num / Math.sqrt(dx * dy);
-}
-
-function decileLift(obs: Obs[], window: 30 | 90 | 180) {
-  const sorted = [...obs].sort((a, b) => a.scoreAtAnchor - b.scoreAtAnchor);
-  const n = sorted.length;
-  const baseRate = sorted.filter((o) => (window === 30 ? o.hadEvent30 : window === 90 ? o.hadEvent90 : o.hadEvent180)).length / Math.max(n, 1);
-  const out: { decile: number; n: number; rate: number; lift: number }[] = [];
-  for (let d = 1; d <= 10; d++) {
-    const start = Math.floor(((d - 1) * n) / 10);
-    const end = Math.floor((d * n) / 10);
-    const slice = sorted.slice(start, end);
-    if (slice.length === 0) continue;
-    const yes = slice.filter((o) => (window === 30 ? o.hadEvent30 : window === 90 ? o.hadEvent90 : o.hadEvent180)).length;
-    const rate = yes / slice.length;
-    out.push({ decile: d, n: slice.length, rate, lift: baseRate > 0 ? rate / baseRate : 0 });
-  }
-  return out;
-}
-
 async function summarize(anchors: Date[]) {
   const all = await prisma.backtestObservation.findMany({
     where: { scoreVersion: SCORE_VERSION, anchorDate: { in: anchors } },
@@ -341,7 +264,7 @@ async function summarize(anchors: Date[]) {
 
   // Per-anchor IC for each window
   const icByWindow: Record<number, number[]> = { 30: [], 90: [], 180: [] };
-  const byAnchor = new Map<number, Obs[]>();
+  const byAnchor = new Map<number, BacktestObs[]>();
   for (const o of all) {
     const t = o.anchorDate.getTime();
     const arr = byAnchor.get(t) ?? [];
@@ -357,14 +280,6 @@ async function summarize(anchors: Date[]) {
     icByWindow[90].push(spearman(xs, ys90));
     icByWindow[180].push(spearman(xs, ys180));
   }
-  const meanStd = (a: number[]) => {
-    const n = a.length;
-    if (n === 0) return { mean: 0, std: 0, n: 0 };
-    const m = a.reduce((s, v) => s + v, 0) / n;
-    const v = a.reduce((s, x) => s + (x - m) ** 2, 0) / n;
-    return { mean: m, std: Math.sqrt(v), n };
-  };
-
   const out: Record<string, unknown> = {
     runAt: new Date().toISOString(),
     scoreVersion: SCORE_VERSION,
