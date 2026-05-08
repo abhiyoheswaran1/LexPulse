@@ -55,8 +55,8 @@ const TYPE_META: Record<string, { tint: string; ring: string; icon: React.Compon
     icon: ZapOff,
   },
   judge_skew: {
-    tint: "bg-accent/10 text-accent",
-    ring: "ring-1 ring-accent/30",
+    tint: "bg-panel2 text-accent",
+    ring: "ring-1 ring-accent/40",
     icon: Sparkle,
   },
 };

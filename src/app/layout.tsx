@@ -38,7 +38,7 @@ function Sidebar() {
   return (
     <aside className="w-56 shrink-0 border-r border-border bg-panel">
       <div className="px-5 py-5 border-b border-border flex items-center gap-2.5">
-        <div className="size-8 rounded-md bg-accent/15 border border-accent/40 grid place-items-center">
+        <div className="size-8 rounded-md bg-panel2 border border-accent/40 grid place-items-center">
           <Activity className="size-4 text-accent" />
         </div>
         <div>
