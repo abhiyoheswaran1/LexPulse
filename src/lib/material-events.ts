@@ -37,11 +37,19 @@ const RULES: Rule[] = [
   {
     eventType: "settlement_disclosed",
     patterns: [
+      // Direct settlement verbiage
       /\bagreed\s+to\s+settle\b/i,
       /\bsettlement\s+agreement\b/i,
       /\bentered\s+into\s+a?\s*settlement\b/i,
       /\bwithout\s+admission\s+of\s+(?:any\s+)?(?:liability|wrongdoing)\b/i,
       /\bpay\b[^.]{0,80}\bin\s+full\s+settlement\b/i,
+      // Common 8-K phrasings actually observed in real filings
+      /\bfor\s+the\s+settlement\s+of\b/i,
+      /\bagreement\s+(?:that\s+)?resolves?\b/i,
+      /\bsettle(?:d|ment)\b[^.]{0,80}\b(?:claim|matter|litigation|dispute|allegation|action|proceeding)/i,
+      /\breached\s+a?n?\s*agreement\b[^.]{0,80}\b(?:resolve|settle|claim|litigation|matter)/i,
+      /\bto\s+resolve\b[^.]{0,80}\b(?:claim|litigation|matter|dispute|action|proceeding)\b/i,
+      /\bresolves?\s+(?:all|the)\s+(?:legacy\s+)?(?:claims?|matters?|allegations?|litigation)\b/i,
     ],
   },
   {
@@ -90,9 +98,12 @@ const RULES: Rule[] = [
       /\bfiled\s+a?\s+(?:putative\s+)?class\s+action\b/i,
       /\bcomplaint\s+was\s+filed\b/i,
       /\bfiled\s+a\s+lawsuit\s+against\b/i,
+      /\bfiled\s+a\s+complaint\b/i,
       /\bsuit\s+was\s+filed\s+against\b/i,
       /\bnamed\s+as\s+a\s+defendant\b/i,
-      /\bcommenced\s+(?:a|an|the)\s+action\s+against\s+the\s+Company\b/i,
+      /\bcommenced\s+(?:a|an|the)\s+(?:civil\s+)?action\b/i,
+      /\bputative\s+class\s+action\s+(?:complaint|lawsuit|was|has)\b/i,
+      /\bderivative\s+(?:lawsuit|action|complaint)\b/i,
     ],
   },
   {
