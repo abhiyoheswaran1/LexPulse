@@ -14,6 +14,9 @@ export type Benchmark = {
   cohortMean: number | null;
   cohortP50: number | null;
   zScore: number | null;
+  // "low_confidence" when 9..28 peers (computed but flagged); UI can dim.
+  // "cohort_too_small" when < 9 peers (no values returned).
+  confidence?: "full" | "low_confidence";
   reason?: "cohort_too_small";
 };
 
@@ -42,10 +45,14 @@ function stdev(values: number[], mu: number): number {
   return Math.sqrt(sumSq / (values.length - 1));
 }
 
-// Minimum peers required for a benchmark. cohortScores excludes the
-// company being scored, so 29 peers means 30 companies in the sector —
-// the methodology-doc threshold.
-const MIN_COHORT_PEERS = 29;
+// Cohort thresholds. cohortScores excludes the company being scored.
+//   < 9 peers: too small, return null. (= sector with < 10 companies)
+//   9..28 peers: low-confidence band — return percentile but flag it,
+//                callers can dim or annotate the UI.
+//   >= 29 peers: full-confidence (sector >= 30 companies, methodology
+//                doc threshold).
+const MIN_COHORT_PEERS = 9;
+const FULL_CONFIDENCE_PEERS = 29;
 
 export function computeBenchmark(score: number, cohortScores: number[]): Benchmark {
   const cohortSize = cohortScores.length;
@@ -80,5 +87,6 @@ export function computeBenchmark(score: number, cohortScores: number[]): Benchma
     cohortMean: Number(mu.toFixed(2)),
     cohortP50: Math.round(median(sorted)),
     zScore: Number(zScore.toFixed(3)),
+    confidence: cohortSize >= FULL_CONFIDENCE_PEERS ? "full" : "low_confidence",
   };
 }

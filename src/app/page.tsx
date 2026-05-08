@@ -9,13 +9,42 @@ import { ArrowUpRight, Bell, TrendingUp, Briefcase, FileText, BellRing } from "l
 export const dynamic = "force-dynamic";
 
 async function getData() {
-  const [companies, alerts, totals, moverSnapshots] = await Promise.all([
-    prisma.company.findMany({
-      include: {
-        scores: { orderBy: { computedAt: "desc" }, take: 1 },
-        _count: { select: { links: true } },
-      },
-    }),
+  // Use the latest v3 snapshot per company at the DB layer instead of
+  // findMany'ing all 7K companies and sorting in Node. The previous
+  // pattern grew O(n) at scale (4s page load at 7K companies).
+  //
+  // Top-risk: 8 highest-scoring v3 snapshots, distinct by company.
+  // Trending: 8 highest recentCases v3 snapshots, distinct by company.
+  // Both use raw SQL via Prisma.$queryRaw — Prisma's relational filters
+  // don't have a clean DISTINCT-ON-most-recent equivalent.
+  const [topRiskRows, trendingRows, alerts, totals, moverSnapshots] = await Promise.all([
+    prisma.$queryRaw<Array<{ id: string; name: string; ticker: string | null; cases: bigint; score: number; band: string; recentCases: number }>>`
+      WITH latest AS (
+        SELECT DISTINCT ON ("companyId") "companyId", score, band, "recentCases"
+        FROM risk_scores WHERE "scoreVersion" = 'v3'
+        ORDER BY "companyId", "computedAt" DESC
+      )
+      SELECT c.id, c.name, c.ticker, l.score, l.band, l."recentCases",
+             COALESCE((SELECT COUNT(*) FROM company_case_link WHERE "companyId" = c.id), 0) AS cases
+      FROM latest l
+      JOIN companies c ON c.id = l."companyId"
+      ORDER BY l.score DESC
+      LIMIT 8
+    `,
+    prisma.$queryRaw<Array<{ id: string; name: string; ticker: string | null; cases: bigint; score: number; band: string; recentCases: number }>>`
+      WITH latest AS (
+        SELECT DISTINCT ON ("companyId") "companyId", score, band, "recentCases"
+        FROM risk_scores WHERE "scoreVersion" = 'v3'
+        ORDER BY "companyId", "computedAt" DESC
+      )
+      SELECT c.id, c.name, c.ticker, l.score, l.band, l."recentCases",
+             COALESCE((SELECT COUNT(*) FROM company_case_link WHERE "companyId" = c.id), 0) AS cases
+      FROM latest l
+      JOIN companies c ON c.id = l."companyId"
+      WHERE l."recentCases" > 0
+      ORDER BY l."recentCases" DESC
+      LIMIT 8
+    `,
     prisma.alert.findMany({
       take: 8,
       orderBy: { createdAt: "desc" },
@@ -34,17 +63,17 @@ async function getData() {
     }),
   ]);
 
-  const ranked = companies.map((c) => ({
-    id: c.id,
-    name: c.name,
-    ticker: c.ticker,
-    caseCount: c._count.links,
-    score: c.scores[0]?.score ?? 0,
-    band: c.scores[0]?.band ?? "low",
-    recentCases: c.scores[0]?.recentCases ?? 0,
-  }));
-  const topRisk = [...ranked].sort((a, b) => b.score - a.score).slice(0, 8);
-  const trending = [...ranked].sort((a, b) => b.recentCases - a.recentCases).slice(0, 8);
+  const mapRow = (r: { id: string; name: string; ticker: string | null; cases: bigint; score: number; band: string; recentCases: number }) => ({
+    id: r.id,
+    name: r.name,
+    ticker: r.ticker,
+    caseCount: Number(r.cases),
+    score: r.score,
+    band: r.band,
+    recentCases: r.recentCases,
+  });
+  const topRisk = topRiskRows.map(mapRow);
+  const trending = trendingRows.map(mapRow);
 
   const seen = new Set<string>();
   const movers: MoverRow[] = moverSnapshots
