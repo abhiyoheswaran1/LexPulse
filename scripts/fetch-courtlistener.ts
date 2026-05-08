@@ -24,7 +24,10 @@ import path from "node:path";
 const API_BASE = "https://www.courtlistener.com/api/rest/v4";
 const POLITENESS_MS = 250; // wait between requests
 const PER_NAME_PAGE_SIZE = 20;
-const PER_NAME_MAX_PAGES = 3; // cap how deep we go for any single name
+// 50 pages × 20 = up to 1000 dockets per Russell-1000 query term. With 68
+// query terms that's a 68K theoretical ceiling; the --limit flag and
+// in-run dedup-by-id usually cap actual yield closer to 30-50K.
+const PER_NAME_MAX_PAGES = 50;
 
 type Args = { out: string; limit: number };
 

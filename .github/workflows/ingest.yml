@@ -12,9 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: "Max dockets to fetch (default 5000)"
+        description: "Max dockets to fetch (default 50000)"
         required: false
-        default: "5000"
+        default: "50000"
 
 concurrency:
   group: ingest-courtlistener
