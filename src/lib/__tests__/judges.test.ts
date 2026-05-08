@@ -38,18 +38,26 @@ describe("judgeMultiplier", () => {
 });
 
 describe("aggregateJudgeMultiplier", () => {
-  it("averages over case-judge pairs (cases with no judge contribute 1.0)", () => {
+  it("averages only over case-judge pairs that resolve to a valid profile (excludes no-judge / no-profile)", () => {
     const profiles: Map<string, JudgeProfileLite> = new Map([
       ["j1", { dismissalRate: 0.10, caseCount: 50 }], // 1.10
       ["j2", { dismissalRate: 0.60, caseCount: 50 }], // 0.92
     ]);
     const cases = [
-      { judgeId: "j1" }, // 1.10
-      { judgeId: "j2" }, // 0.92
-      { judgeId: null }, // 1.00
+      { judgeId: "j1" }, // 1.10 — counted
+      { judgeId: "j2" }, // 0.92 — counted
+      { judgeId: null }, // excluded
+      { judgeId: "j-missing" }, // no profile — excluded
     ];
     const m = aggregateJudgeMultiplier(cases, profiles);
-    expect(m).toBeCloseTo((1.10 + 0.92 + 1.0) / 3, 3);
+    expect(m).toBeCloseTo((1.10 + 0.92) / 2, 3);
+  });
+
+  it("returns 1.0 when no case has a valid profile (no signal, neutral fallback)", () => {
+    const profiles: Map<string, JudgeProfileLite> = new Map([
+      ["j-low-sample", { dismissalRate: 0.10, caseCount: 2 }], // gated by MIN_SAMPLE
+    ]);
+    expect(aggregateJudgeMultiplier([{ judgeId: "j-low-sample" }, { judgeId: null }], profiles)).toBe(1.0);
   });
 
   it("returns 1.0 when no cases", () => {

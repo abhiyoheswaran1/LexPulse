@@ -46,6 +46,22 @@ describe("looksLikeCompany", () => {
     expect(looksLikeCompany("Estate of Adams")).toBe(false);
   });
 
+  it("rejects Schedule A defendant composites (federal IP litigation pattern)", () => {
+    expect(
+      looksLikeCompany(
+        "The Individuals, Corporations, Limited Liability Companies, Partnerships, and Unincorporated Associations Identified on Schedule A",
+      ),
+    ).toBe(false);
+    expect(looksLikeCompany("Defendants Identified on Schedule A")).toBe(false);
+    expect(looksLikeCompany("Schedule A Defendants")).toBe(false);
+  });
+
+  it("rejects names longer than 200 chars (docket composites, never a single company)", () => {
+    const longName = "Acme Corp, Foo LLC, Bar Inc, Baz Ltd, ".repeat(10);
+    expect(longName.length).toBeGreaterThan(200);
+    expect(looksLikeCompany(longName)).toBe(false);
+  });
+
   it("rejects empty / whitespace", () => {
     expect(looksLikeCompany("")).toBe(false);
     expect(looksLikeCompany("   ")).toBe(false);

@@ -196,6 +196,7 @@ async function main() {
       topCircuit: v3.topCircuit,
       topCircuitShare: v3.topCircuitShare,
       jurisdictionFactor: v3.jurisdictionFactor,
+      concentrationFactor: v3.concentrationFactor,
       cat12moTotal: cases12moTotal,
       meanJudgeDismissal: v3.meanJudgeDismissal,
       judgeSampleSize: v3.judgeSampleSize,

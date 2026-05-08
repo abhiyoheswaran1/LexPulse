@@ -134,14 +134,28 @@ const KNOWN_COMPANY_KEYS = new Set(
 // OR its normalized form matches a known marquee name.
 // Anything matching individual-name / "in re" / "estate of" patterns is
 // rejected outright before any positive check.
+//
+// SCHEDULE-A pattern: federal IP cases use "The Individuals, Corporations,
+// Limited Liability Companies, Partnerships, and Unincorporated
+// Associations Identified on Schedule A" as a placeholder defendant
+// composite. It contains corp-keyword matches but is not a real company.
 const NON_COMPANY_RE = /^\s*(doe|john doe|jane doe|j\. doe|in re\b|estate of\b|et al\b)/i;
+const SCHEDULE_A_RE = /\b(schedule a|the individuals,? corporations|unincorporated associations identified on schedule)/i;
 const CORP_SUFFIX_RE = /\b(inc|corp|llc|ltd|co|company|corporation|incorporated|limited|plc|llp|lp|gmbh|ag|s\.?a\.?|n\.?v\.?)\b\.?/i;
 const CORP_KEYWORD_RE = /\b(bank|holdings|group|industries|partners|capital|technologies|systems|labs|pharmaceuticals|biosciences|semiconductor|software|insurance|energy|logistics|airlines|motors|foods|robotics|cloud|financial|media|networks|solutions|services)\b/i;
+
+// Names longer than this are almost always docket-formatted defendant
+// composites ("X, Y, Z, A, B, ... and others") rather than real companies.
+// Shorter cap than you'd expect because real corp names rarely exceed
+// ~10 words after suffix-stripping.
+const MAX_COMPANY_NAME_LEN = 200;
 
 export function looksLikeCompany(raw: string): boolean {
   const t = raw.trim();
   if (!t) return false;
+  if (t.length > MAX_COMPANY_NAME_LEN) return false;
   if (NON_COMPANY_RE.test(t)) return false;
+  if (SCHEDULE_A_RE.test(t)) return false;
   if (CORP_SUFFIX_RE.test(t)) return true;
   if (CORP_KEYWORD_RE.test(t)) return true;
   // Marquee names without any of the above markers (e.g., bare "Apple").

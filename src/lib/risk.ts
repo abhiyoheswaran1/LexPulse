@@ -16,11 +16,35 @@ import { aggregateJudgeMultiplier, type JudgeProfileLite } from "./judges";
 
 export type RiskBand = "low" | "moderate" | "elevated" | "high";
 
-export function bandFor(score: number): RiskBand {
-  if (score >= 75) return "high";
-  if (score >= 50) return "elevated";
-  if (score >= 25) return "moderate";
-  return "low";
+// Band assignment with a data-sufficiency gate. Patent-troll LLCs and
+// other entities with very few historical cases can saturate the score
+// math (high severity + single-category concentration → score 95+) on
+// 5–8 cases. Without a gate they read identical to genuinely large
+// litigants. Bound:
+//   < 5 cases  → never above "moderate"
+//   < 10 cases → never above "elevated"
+// Above 10 cases, normal band thresholds apply.
+//
+// caseCount is optional for backward compatibility with v1/v2 callers
+// that didn't have this gate; passing undefined reproduces the
+// original behavior.
+export function bandFor(score: number, caseCount?: number): RiskBand {
+  let band: RiskBand;
+  if (score >= 75) band = "high";
+  else if (score >= 50) band = "elevated";
+  else if (score >= 25) band = "moderate";
+  else band = "low";
+
+  if (caseCount === undefined) return band;
+  if (caseCount < 5) {
+    if (band === "high" || band === "elevated") return "moderate";
+    return band;
+  }
+  if (caseCount < 10) {
+    if (band === "high") return "elevated";
+    return band;
+  }
+  return band;
 }
 
 export type CaseLite = {
@@ -70,7 +94,7 @@ export function computeRisk(cases: CaseLite[], now: Date = new Date()): RiskBrea
   );
   return {
     score,
-    band: bandFor(score),
+    band: bandFor(score, total),
     volumeFactor,
     recencyFactor,
     severityFactor,
@@ -228,7 +252,7 @@ export function computeRiskV2(
 
   return {
     score,
-    band: bandFor(score),
+    band: bandFor(score, v1.caseCount),
     volumeFactor: v1.volumeFactor,
     recencyFactor: v1.recencyFactor,
     severityFactor: v1.severityFactor,
@@ -294,7 +318,7 @@ export function computeRiskV3(
 
   return {
     score,
-    band: bandFor(score),
+    band: bandFor(score, v2.caseCount),
     volumeFactor: v2.volumeFactor,
     recencyFactor: v2.recencyFactor,
     severityFactor: v2.severityFactor,

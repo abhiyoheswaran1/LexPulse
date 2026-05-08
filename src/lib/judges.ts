@@ -32,18 +32,36 @@ export function judgeMultiplier(profile: JudgeProfileLite | null): number {
   return Math.max(MULT_MIN, Math.min(MULT_MAX, raw));
 }
 
-// Case-weighted mean over all (case, judge) pairs in the input. Cases with
-// no judge or no profile contribute 1.0 (neutral). Returns 1.0 when input
-// is empty.
+// Case-weighted mean over case-judge pairs that resolve to a *valid*
+// profile (caseCount >= MIN_SAMPLE, dismissalRate non-null). Cases with
+// no judgeId or no usable profile are excluded from the average — NOT
+// counted as 1.0.
+//
+// Why exclude vs. count-as-neutral:
+//   At the current production density (~4% case-judge coverage), counting
+//   no-profile cases as 1.0 dilutes the signal toward neutral. A company
+//   with 100 cases and 3 low-dismissal judges (mult 1.10) would average
+//   to 1.003 — 0.3% effect — even though those 3 judges are saying real
+//   things about realized risk. Excluding lets the few covered cases
+//   speak. Methodology trade-off documented in the v3 doc.
+//
+// Returns 1.0 when no cases resolve (caller treats as neutral; the
+// `judgeSampleSize` field on the breakdown surfaces the actual coverage
+// so callers can downweight if they want).
 export function aggregateJudgeMultiplier(
   cases: Array<{ judgeId: string | null }>,
   profiles: Map<string, JudgeProfileLite>,
 ): number {
-  if (cases.length === 0) return 1.0;
   let sum = 0;
+  let n = 0;
   for (const c of cases) {
-    const profile = c.judgeId ? profiles.get(c.judgeId) ?? null : null;
+    if (!c.judgeId) continue;
+    const profile = profiles.get(c.judgeId);
+    if (!profile) continue;
+    if (profile.caseCount < MIN_SAMPLE) continue;
+    if (profile.dismissalRate == null) continue;
     sum += judgeMultiplier(profile);
+    n++;
   }
-  return sum / cases.length;
+  return n === 0 ? 1.0 : sum / n;
 }

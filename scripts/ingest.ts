@@ -22,6 +22,7 @@ import fs from "node:fs";
 import readline from "node:readline";
 import { prisma } from "../src/lib/db";
 import { normalizeCompanyName, looksLikeCompany, classifyRole } from "../src/lib/resolve";
+import { stripHtml } from "../src/lib/utils";
 
 type RawParty = {
   name?: string;
@@ -216,7 +217,7 @@ async function ingestBatch(rows: RawDocket[]) {
     await prisma.case.update({
       where: { sourceId: sid },
       data: {
-        caseName: d.case_name ?? "(unnamed)",
+        caseName: stripHtml(d.case_name ?? "") || "(unnamed)",
         dateTerminated: dateTerm,
         natureOfSuit: d.nature_of_suit ?? null,
         judgeId,
@@ -247,7 +248,7 @@ async function ingestBatch(rows: RawDocket[]) {
       : null;
     newCaseInserts.push({
       sourceId: sid,
-      caseName: d.case_name ?? "(unnamed)",
+      caseName: stripHtml(d.case_name ?? "") || "(unnamed)",
       court: courtNorm,
       docketNumber: d.docket_number ?? null,
       dateFiled,

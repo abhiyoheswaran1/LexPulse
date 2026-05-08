@@ -25,11 +25,16 @@ export type DriverSnapshot = {
   topCircuit: string | null;
   topCircuitShare: number;
   jurisdictionFactor: number;
+  // Concentration factor [0..1] from the score engine — used by the
+  // category_concentration driver so the "weight" matches the actual
+  // score impact (was using topCategoryShare alone, which over-states).
+  concentrationFactor?: number;
   // 12mo case count — used by category_concentration to avoid firing on
   // single-case companies (one-case-in-securities ≠ "concentration").
   cat12moTotal?: number;
   // Judge signals (v3): mean dismissal rate over case-judges with valid
-  // profiles, and the sample size. Used by judge_skew template.
+  // profiles, the sample size, and the total trailing-12mo cases (so
+  // judge_skew can require sufficient coverage before firing).
   meanJudgeDismissal?: number | null;
   judgeSampleSize?: number;
 };
@@ -93,10 +98,10 @@ export function generateDrivers(input: DriverInput): Driver[] {
 
   // decay: score fell >= 10
   if (prev && prev.score - curr.score >= 10) {
-    const delta = curr.score - prev.score;
+    const delta = curr.score - prev.score; // negative
     candidates.push({
       type: "decay",
-      label: `Risk eased ${delta} as case activity slowed`,
+      label: `Risk eased ${Math.abs(delta)} points as case activity slowed`,
       weight: Math.min(1, Math.abs(delta) / 20),
       evidence: { from: prev.score, to: curr.score, delta },
     });
@@ -127,24 +132,32 @@ export function generateDrivers(input: DriverInput): Driver[] {
   }
 
   // category_concentration: topCategoryShare >= 0.5 AND severity >= 0.6 AND
-  // at least 3 cases in the trailing 12 months (avoid firing on single-case
-  // companies where "concentration" is trivial).
+  // at least 5 cases in the trailing 12 months (avoid firing on tiny-case
+  // companies where "concentration" is trivial — bumped from 3 to 5 to
+  // align with the score engine's bandFor data-sufficiency gate).
+  //
+  // weight uses concentrationFactor (the same value the score engine uses
+  // to compute the bonus), so the driver's prominence in the UI matches
+  // the actual score impact. Was previously topCategoryShare * sev which
+  // over-stated the score weight for diffuse 50/30/20 splits.
   if (
     curr.topCategory &&
     curr.topCategoryShare >= 0.5 &&
-    (curr.cat12moTotal ?? 0) >= 3
+    (curr.cat12moTotal ?? 0) >= 5
   ) {
     const sev = severityForCategory(curr.topCategory);
     if (sev >= 0.6) {
       const pct = Math.round(curr.topCategoryShare * 100);
+      const conc = curr.concentrationFactor ?? curr.topCategoryShare;
       candidates.push({
         type: "category_concentration",
         label: `Concentration in ${CATEGORY_LABEL[curr.topCategory]} (${pct}% of recent activity)`,
-        weight: curr.topCategoryShare * sev,
+        weight: Math.min(1, conc * sev),
         evidence: {
           category: curr.topCategory,
           share: Number(curr.topCategoryShare.toFixed(2)),
           cat12moTotal: curr.cat12moTotal ?? null,
+          concentrationFactor: Number(conc.toFixed(3)),
         },
       });
     }
@@ -178,22 +191,33 @@ export function generateDrivers(input: DriverInput): Driver[] {
 
   // judge_skew (v3): low average dismissal rate across the company's case
   // judges signals cases tend to advance in this judicial environment.
-  // Requires >= 3 judge-profile data points to fire.
+  // Gates:
+  //   - mean dismissal rate < 0.25
+  //   - at least 3 judge-profile data points
+  //   - sample is at least 50% of trailing-12mo cases (don't fire when
+  //     judge data covers only a tiny minority of activity — the driver
+  //     would be misleading)
   if (
     curr.meanJudgeDismissal != null &&
     (curr.judgeSampleSize ?? 0) >= 3 &&
     curr.meanJudgeDismissal < 0.25
   ) {
-    const pct = Math.round(curr.meanJudgeDismissal * 100);
-    candidates.push({
-      type: "judge_skew",
-      label: `Cases assigned to judges with low dismissal rates (${pct}% avg)`,
-      weight: Math.min(1, (0.25 - curr.meanJudgeDismissal) / 0.25),
-      evidence: {
-        meanDismissalRate: Number(curr.meanJudgeDismissal.toFixed(3)),
-        sampleSizeJudges: curr.judgeSampleSize,
-      },
-    });
+    const sampleSize = curr.judgeSampleSize ?? 0;
+    const total12mo = curr.cat12moTotal ?? sampleSize; // fallback to sample size if total unknown
+    const coverage = total12mo > 0 ? sampleSize / total12mo : 0;
+    if (coverage >= 0.5) {
+      const pct = Math.round(curr.meanJudgeDismissal * 100);
+      candidates.push({
+        type: "judge_skew",
+        label: `Cases assigned to judges with low dismissal rates (${pct}% avg)`,
+        weight: Math.min(1, (0.25 - curr.meanJudgeDismissal) / 0.25),
+        evidence: {
+          meanDismissalRate: Number(curr.meanJudgeDismissal.toFixed(3)),
+          sampleSizeJudges: sampleSize,
+          coverage: Number(coverage.toFixed(2)),
+        },
+      });
+    }
   }
 
   candidates.sort((a, b) => b.weight - a.weight);

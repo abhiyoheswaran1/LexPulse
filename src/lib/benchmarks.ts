@@ -1,9 +1,12 @@
 // Sector-cohort benchmarking.
 //
-// Two-pass orchestration: caller computes all v2 scores in pass 1, accumulates
+// Two-pass orchestration: caller computes all v3 scores in pass 1, accumulates
 // { sectorKey: scores[] }, then in pass 2 calls computeBenchmark per company.
+// The caller is expected to pass a cohort with the company's own score
+// excluded — `cohortScores` is "peers", not "self+peers".
 //
-// Cohort gate: minimum 30 peers; below that, return null with a reason.
+// Cohort gate: 29 peers minimum (so 30+ companies in a sector hit the
+// benchmark threshold; the 30th is the company being benchmarked).
 
 export type Benchmark = {
   cohortSize: number;
@@ -39,9 +42,14 @@ function stdev(values: number[], mu: number): number {
   return Math.sqrt(sumSq / (values.length - 1));
 }
 
+// Minimum peers required for a benchmark. cohortScores excludes the
+// company being scored, so 29 peers means 30 companies in the sector —
+// the methodology-doc threshold.
+const MIN_COHORT_PEERS = 29;
+
 export function computeBenchmark(score: number, cohortScores: number[]): Benchmark {
   const cohortSize = cohortScores.length;
-  if (cohortSize < 30) {
+  if (cohortSize < MIN_COHORT_PEERS) {
     return {
       cohortSize,
       percentile: null,
@@ -56,8 +64,16 @@ export function computeBenchmark(score: number, cohortScores: number[]): Benchma
   const mu = mean(w);
   const sd = Math.max(stdev(w, mu), 1);
   const zScore = (score - mu) / sd;
-  const leq = sorted.filter((s) => s <= score).length;
-  const percentile = (leq / cohortSize) * 100;
+  // Tie-aware percentile: half-weight ties so a tied-with-many peers
+  // company doesn't read as "above all of them". Result is a true
+  // mid-rank position.
+  let less = 0;
+  let tied = 0;
+  for (const s of sorted) {
+    if (s < score) less++;
+    else if (s === score) tied++;
+  }
+  const percentile = ((less + 0.5 * tied) / cohortSize) * 100;
   return {
     cohortSize,
     percentile: Number(percentile.toFixed(1)),

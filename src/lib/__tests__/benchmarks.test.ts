@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeBenchmark, winsorize } from "../benchmarks";
 
 describe("benchmarks", () => {
-  it("returns null when cohort < 30", () => {
+  it("returns null when cohort < 29 peers (= sector with < 30 companies)", () => {
     const result = computeBenchmark(50, [10, 20, 30]);
     expect(result.cohortSize).toBe(3);
     expect(result.percentile).toBeNull();
@@ -12,12 +12,23 @@ describe("benchmarks", () => {
     expect(result.reason).toBe("cohort_too_small");
   });
 
-  it("computes percentile when cohort >= 30", () => {
-    const cohort = Array.from({ length: 30 }, (_, i) => i + 1); // 1..30
+  it("computes percentile when peer cohort >= 29 (sector >= 30 companies)", () => {
+    const cohort = Array.from({ length: 29 }, (_, i) => i + 1); // 1..29 peers
     const result = computeBenchmark(15, cohort);
-    expect(result.cohortSize).toBe(30);
+    expect(result.cohortSize).toBe(29);
     expect(result.percentile!).toBeGreaterThan(40);
     expect(result.percentile!).toBeLessThan(60);
+  });
+
+  it("tie-aware percentile splits ties between rank groups", () => {
+    // 10 peers all at 50. We tie with all of them. Tie-aware percentile
+    // treats us as mid-rank: less=0, tied=10 → (0 + 0.5*10)/cohortSize.
+    // (Need cohort ≥ 29 to clear the gate; pad with low scores.)
+    const cohort = [...Array(10).fill(50), ...Array(20).fill(0)]; // 30 peers
+    const result = computeBenchmark(50, cohort);
+    // 0 strictly less than 50? No, 20 are < 50. tied = 10.
+    // percentile = (20 + 0.5*10) / 30 = 25/30 = 83.3
+    expect(result.percentile!).toBeCloseTo(83.3, 1);
   });
 
   it("z-score is positive above mean, negative below", () => {

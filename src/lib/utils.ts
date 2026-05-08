@@ -5,6 +5,40 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Strip HTML tags + decode common entities. CourtListener occasionally
+// stores raw HTML in case names (e.g., warning banners like
+// `Meta Platforms, Inc. <font color="red">DO NOT DOCKET</font>`); we
+// don't want that bleeding into our UI or DB. Aggressive but bounded —
+// only handles tags + a few named/numeric entities, no full HTML parse.
+const HTML_TAG_RE = /<\/?[a-z][^>]*>/gi;
+const HTML_ENTITY_RE = /&(amp|lt|gt|quot|#39|nbsp|#x?[0-9a-f]+);/gi;
+const ENTITY_MAP: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+  "&nbsp;": " ",
+};
+
+export function stripHtml(s: string): string {
+  if (!s) return s;
+  if (s.indexOf("<") === -1 && s.indexOf("&") === -1) return s;
+  return s
+    .replace(HTML_TAG_RE, "")
+    .replace(HTML_ENTITY_RE, (m) => {
+      if (ENTITY_MAP[m.toLowerCase()] != null) return ENTITY_MAP[m.toLowerCase()];
+      const numMatch = /^&#(x?)([0-9a-f]+);$/i.exec(m);
+      if (numMatch) {
+        const code = parseInt(numMatch[2], numMatch[1] ? 16 : 10);
+        if (code > 0 && code < 0x10ffff) return String.fromCodePoint(code);
+      }
+      return "";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
