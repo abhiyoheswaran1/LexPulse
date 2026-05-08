@@ -6,7 +6,10 @@ import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
 import { formatRelative, cn } from "@/lib/utils";
 import { ArrowUpRight, Bell, TrendingUp, Briefcase, FileText, BellRing } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+// ISR: page is regenerated at most every 60s in the background. Live
+// dashboard reads cached HTML; users get near-instant responses while
+// the background regeneration keeps data fresh.
+export const revalidate = 60;
 
 async function getData() {
   // Use the latest v3 snapshot per company at the DB layer instead of

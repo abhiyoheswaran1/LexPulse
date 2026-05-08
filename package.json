@@ -11,6 +11,7 @@
     "fetch:courtlistener": "tsx scripts/fetch-courtlistener.ts",
     "fetch:courtlistener-bulk": "tsx scripts/fetch-courtlistener-bulk.ts",
     "seed:sectors": "tsx scripts/seed-sectors.ts",
+    "expand:sectors": "tsx scripts/expand-sectors.ts",
     "seed:judges": "tsx scripts/seed-judges.ts",
     "risk": "tsx scripts/compute-risk.ts",
     "test": "vitest run",
