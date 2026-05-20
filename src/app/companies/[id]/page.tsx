@@ -122,6 +122,12 @@ export default async function CompanyPage({ params }: { params: { id: string } }
               <span>{cases.length.toLocaleString()} cases on record</span>
               {score && <span aria-hidden>·</span>}
               {score && <span>computed {formatRelative(score.computedAt)}</span>}
+              <Link
+                href={`/simple/companies/${co.id}`}
+                className="rounded-md border border-border px-2 py-1 text-fg/80 transition hover:border-accent/60 hover:text-accent"
+              >
+                Simple brief
+              </Link>
             </div>
 
             {score && (
