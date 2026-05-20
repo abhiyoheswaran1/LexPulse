@@ -254,6 +254,6 @@ If you're a heavy user of CourtListener, please consider [supporting Free Law Pr
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE) (TBD).
+MIT. See [`LICENSE`](LICENSE).
 
 The methodology document and design specs in `docs/` are released under the same license as the code.
