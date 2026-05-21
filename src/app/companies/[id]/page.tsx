@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Panel } from "@/components/Panel";
 import { ScoreGauge } from "@/components/ScoreGauge";
+import { ScoreHistoryChart, type ScoreHistoryPoint } from "@/components/ScoreHistoryChart";
 import { CaseTimeline } from "@/components/CaseTimeline";
 import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
+import { WatchlistButton } from "@/components/workflow/WatchlistButton";
 import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
 import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 import { deriveSubScores, type RiskBreakdownV3 } from "@/lib/risk";
@@ -22,7 +24,7 @@ async function getCompany(id: string) {
         include: { caseRef: { include: { judge: true } } },
         orderBy: { caseRef: { dateFiled: "desc" } },
       },
-      scores: { orderBy: { computedAt: "desc" }, take: 1 },
+      scores: { orderBy: { computedAt: "desc" }, take: 24 },
       alerts: { take: 8, orderBy: { createdAt: "desc" } },
     },
   });
@@ -53,6 +55,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
 
   const score = co.scores[0];
   const cases = co.links.map((l) => ({ ...l.caseRef, role: l.role }));
+  const casesById = new Map(cases.map((caseRef) => [caseRef.id, caseRef]));
   const timeline = bucketByMonth(cases.map((c) => c.dateFiled));
   const drivers = extractDrivers(score?.drivers);
   const driverTypes = drivers.map((driver) => driver.type).filter((type): type is string => typeof type === "string");
@@ -113,6 +116,26 @@ export default async function CompanyPage({ params }: { params: { id: string } }
   const categories = Array.from(byNature, ([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
+  const scoreHistory: ScoreHistoryPoint[] = [...co.scores]
+    .reverse()
+    .map((item) => ({
+      label: `${item.computedAt.getMonth() + 1}/${String(item.computedAt.getDate()).padStart(2, "0")}`,
+      score: item.score,
+      band: item.band,
+    }));
+  const changeEvents = co.scores.slice(0, 8).map((item, index) => {
+    const prior = co.scores[index + 1];
+    const delta = prior ? item.score - prior.score : item.delta7d;
+    const itemDrivers = extractDrivers(item.drivers);
+    return {
+      id: item.id,
+      computedAt: item.computedAt,
+      score: item.score,
+      band: item.band,
+      delta,
+      driver: itemDrivers[0]?.label ?? null,
+    };
+  });
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -120,7 +143,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         <ChevronLeft className="size-3.5" /> back
       </Link>
 
-      {/* Hero — single flat surface containing identity + score gauge + factor
+      {/* Hero: single flat surface containing identity + score gauge + factor
           stack. Avoids the nested-card visual that the old layout had. */}
       <header className="rounded-xl border border-border bg-panel/60 p-7">
         <div className="flex items-start justify-between gap-8 flex-wrap">
@@ -141,8 +164,8 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                 </span>
               )}
               <span>{cases.length.toLocaleString()} cases on record</span>
-              {score && <span aria-hidden>·</span>}
-              {score && <span>computed {formatRelative(score.computedAt)}</span>}
+              {score && <span>Computed {formatRelative(score.computedAt)}</span>}
+              <WatchlistButton id={co.id} name={co.name} ticker={co.ticker} compact />
             </div>
 
             {score && (
@@ -158,7 +181,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                   label="7d change"
                   value={
                     score.delta7d == null ? (
-                      "—"
+                      "-"
                     ) : (
                       <DeltaValue value={score.delta7d} />
                     )
@@ -212,6 +235,54 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </Panel>
       )}
 
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.85fr] gap-6">
+        <Panel title="Score history" subtitle="Latest persisted score snapshots for this company.">
+          <ScoreHistoryChart data={scoreHistory} />
+        </Panel>
+        <Panel title="Why did this change?" subtitle="Recent score movement and primary driver at each snapshot.">
+          <ul className="space-y-3">
+            {changeEvents.length === 0 ? (
+              <li className="text-sm text-muted">No historical score movement yet.</li>
+            ) : (
+              changeEvents.map((event) => (
+                <li key={event.id} className="rounded-lg border border-border bg-panel2/40 p-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium">Score {event.score}</div>
+                      <div className="mt-1 text-xs text-muted">{formatRelative(event.computedAt)}</div>
+                    </div>
+                    <DeltaBadge value={event.delta} />
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-muted">
+                    {event.driver ?? `Band is ${event.band}; no dominant driver was recorded for this snapshot.`}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
+        </Panel>
+      </div>
+
+      <Panel title="Data confidence" subtitle="Entity and sector matching signals used by the product.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <ConfidenceItem
+            label="Sector match"
+            value={co.sectorConfidence == null ? "Unknown" : `${Math.round(co.sectorConfidence * 100)}%`}
+            hint={co.sectorSource ? `Source: ${co.sectorSource}` : "No sector source recorded"}
+          />
+          <ConfidenceItem
+            label="SEC identity"
+            value={co.cik ? "CIK linked" : "No CIK"}
+            hint={co.cik ? `CIK ${co.cik}` : "Private, foreign, or unmatched public company"}
+          />
+          <ConfidenceItem
+            label="Entity key"
+            value="Normalized"
+            hint="Company and party names are resolved through a normalized key."
+          />
+        </div>
+      </Panel>
+
       {score && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <DriversPanel drivers={drivers} />
@@ -234,7 +305,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Panel className="lg:col-span-2" title="Filings — last 24 months" subtitle="Monthly count of new dockets">
+        <Panel className="lg:col-span-2" title="Filings, last 24 months" subtitle="Monthly count of new dockets">
           <CaseTimeline data={timeline} />
         </Panel>
         <Panel title="Categories" subtitle="By nature of suit">
@@ -267,7 +338,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
 
       <Panel
         title="Cases"
-        subtitle={`${cases.length.toLocaleString()} dockets, most recent first · click any row to view on CourtListener`}
+        subtitle={`${cases.length.toLocaleString()} dockets, most recent first. Click any linked row to view on CourtListener.`}
       >
         {cases.length === 0 ? (
           <div className="text-sm text-muted">No cases.</div>
@@ -318,14 +389,14 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                           </>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted tabular">{c.court ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted tabular">{c.court ?? "-"}</td>
                       <td className="px-4 py-3 text-xs">
                         {c.natureOfSuit ? (
                           <span className="rounded-md border border-border bg-panel2 px-2 py-0.5 text-xs">
                             {c.natureOfSuit}
                           </span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs">
@@ -367,6 +438,9 @@ export default async function CompanyPage({ params }: { params: { id: string } }
             {co.alerts.map((a) => {
               const dot =
                 a.severity === "critical" ? "bg-bad" : a.severity === "warn" ? "bg-warn" : "bg-muted";
+              const alertCaseId = extractCaseId(a.refs);
+              const alertCase = alertCaseId ? casesById.get(alertCaseId) : null;
+              const sourceUrl = alertCase ? courtListenerUrl(alertCase.sourceId ?? null, alertCase.caseName) : null;
               return (
                 <li key={a.id} className="flex items-start gap-3 text-sm">
                   <span className={`mt-1.5 size-2 rounded-full ${dot}`} />
@@ -376,6 +450,16 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                       <span className="text-xs text-muted">{formatRelative(a.createdAt)}</span>
                     </div>
                     <div className="text-xs text-muted">{a.body}</div>
+                    {sourceUrl && (
+                      <Link
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-muted transition hover:text-accent"
+                      >
+                        Source docket <ExternalLink className="size-3" />
+                      </Link>
+                    )}
                   </div>
                 </li>
               );
@@ -411,6 +495,36 @@ function AttentionPill({ level, label }: { level: AttentionLevel; label: string 
       <span className="size-1.5 rounded-full bg-current opacity-75" />
       {label}
     </span>
+  );
+}
+
+function DeltaBadge({ value }: { value: number | null }) {
+  if (value == null || value === 0) {
+    return <span className="rounded-md border border-border px-2 py-1 text-xs text-muted">flat</span>;
+  }
+
+  const up = value > 0;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
+        up ? "border-bad/40 bg-bad/10 text-bad" : "border-ok/40 bg-ok/10 text-ok",
+      )}
+    >
+      {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+      {up ? "+" : ""}
+      {value}
+    </span>
+  );
+}
+
+function ConfidenceItem({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-panel2/40 p-4">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</div>
+      <div className="mt-2 text-lg font-semibold">{value}</div>
+      <div className="mt-1 text-xs leading-5 text-muted">{hint}</div>
+    </div>
   );
 }
 
@@ -465,14 +579,14 @@ function FactorList({ score }: { score: ScoreRow }) {
     rows.push({
       label: "Jurisdiction",
       v: Math.min(1, Math.max(0, (score.jurisdictionFactor - 0.85) / 0.3)),
-      raw: score.jurisdictionFactor.toFixed(2) + "×",
+      raw: score.jurisdictionFactor.toFixed(2) + "x",
     });
   }
   if (score.judgeFactor != null) {
     rows.push({
       label: "Judge",
       v: Math.min(1, Math.max(0, (score.judgeFactor - 0.92) / 0.18)),
-      raw: score.judgeFactor.toFixed(2) + "×",
+      raw: score.judgeFactor.toFixed(2) + "x",
     });
   }
   return (
@@ -498,4 +612,10 @@ function FactorList({ score }: { score: ScoreRow }) {
 function extractDrivers(drivers: unknown): Driver[] {
   if (!Array.isArray(drivers)) return [];
   return drivers.filter((driver): driver is Driver => typeof driver === "object" && driver !== null);
+}
+
+function extractCaseId(refs: unknown): string | null {
+  if (!refs || typeof refs !== "object") return null;
+  const candidate = refs as { caseId?: unknown };
+  return typeof candidate.caseId === "string" ? candidate.caseId : null;
 }

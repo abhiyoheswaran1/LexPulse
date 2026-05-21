@@ -3,7 +3,7 @@ import { Panel } from "@/components/Panel";
 import { Code2, ExternalLink } from "lucide-react";
 
 export const metadata = {
-  title: "API — LexPulse",
+  title: "API - LexPulse",
 };
 
 export default function ApiDocsPage() {
@@ -17,11 +17,11 @@ export default function ApiDocsPage() {
           </h1>
           <p className="text-sm text-muted mt-2 max-w-2xl leading-relaxed">
             Public read-only endpoints. Stable across the v3.0 methodology revision. Authentication
-            and rate limiting are not yet enforced — both arrive with the platform-shell milestone.
+            and rate limiting are not yet enforced. Both arrive with the platform-shell milestone.
           </p>
         </div>
         <Link
-          href="https://github.com/abhiyoheswaran1/LexPulse/blob/main/docs/methodology/risk-score-v3.md"
+          href="/methodology"
           className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent border border-border rounded-md px-3 py-1.5"
         >
           Methodology
@@ -75,6 +75,7 @@ export default function ApiDocsPage() {
         description="Paginated list of companies. Sorted by latest snapshot score by default."
         params={[
           { name: "limit", desc: "Max rows returned (default 50, max 200)" },
+          { name: "ids", desc: "Comma-separated company IDs for watchlist hydration" },
           { name: "sort", desc: "One of `risk` (default), `cases`, `name`" },
         ]}
         example={`{
@@ -174,7 +175,7 @@ export default function ApiDocsPage() {
         method="GET"
         path="/api/search"
         description="Search companies by name (case-insensitive substring)."
-        params={[{ name: "q", desc: "Query string (≤ 100 chars)" }]}
+        params={[{ name: "q", desc: "Query string (100 chars or fewer)" }]}
         example={`{
   "results": [
     { "id": "cmow...", "name": "PFIZER INC", "ticker": null, "score": 100, "band": "high" }
@@ -204,7 +205,7 @@ export default function ApiDocsPage() {
       <Endpoint
         method="GET"
         path="/api/dashboard"
-        description="Aggregated dashboard payload — totals, top risk, trending, recent alerts, biggest movers — in a single round-trip."
+        description="Aggregated dashboard payload: totals, top risk, trending, recent alerts, and biggest movers in a single round-trip."
         example={`{
   "totals": { "companies": 396, "cases": 1000, "alerts": 5 },
   "topRisk": [{ "id": "...", "name": "PFIZER INC", "score": 100, "band": "high" }, ...],
@@ -229,7 +230,7 @@ export default function ApiDocsPage() {
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex gap-2.5 text-fg/80">
-      <span className="text-muted/60 select-none mt-2">·</span>
+      <span className="text-muted/60 select-none mt-2">-</span>
       <span className="flex-1">{children}</span>
     </li>
   );

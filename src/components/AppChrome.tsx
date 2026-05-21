@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  Bookmark,
+  BookOpen,
   LayoutDashboard,
   ListChecks,
   Map,
@@ -49,9 +51,11 @@ function AdvancedSidebar() {
       </Link>
       <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
         <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
+        <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" />
         <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" />
         <AdvancedNavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" />
         <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" />
+        <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" />
         <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" />
         <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
       </nav>
