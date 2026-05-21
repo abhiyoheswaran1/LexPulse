@@ -7,6 +7,7 @@ import { DashboardPersonalization } from "@/components/workflow/DashboardPersona
 import { OnboardingPanel } from "@/components/platform/OnboardingPanel";
 import { AdaptiveDataList } from "@/components/ui/AdaptiveDataList";
 import { getDashboardCounts } from "@/lib/dashboard-counts";
+import { isDisplayableEntityName } from "@/lib/entity-display";
 import { formatRelative, cn } from "@/lib/utils";
 import {
   attentionLabel,
@@ -83,7 +84,7 @@ async function getData() {
       LEFT JOIN sectors s ON s.key = c."sectorKey"
     `,
     prisma.alert.findMany({
-      take: 8,
+      take: 30,
       orderBy: { createdAt: "desc" },
       include: { company: { select: { id: true, name: true } } },
     }),
@@ -100,7 +101,7 @@ async function getData() {
     }),
   ]);
 
-  const rows = companyRows.map(toAttentionRow);
+  const rows = companyRows.filter((row) => isDisplayableEntityName(row.name)).map(toAttentionRow);
   const queue = [...rows]
     .filter((row) => row.level !== "quiet")
     .sort((a, b) => {
@@ -133,7 +134,7 @@ async function getData() {
     .filter((s) => {
       if (seen.has(s.companyId)) return false;
       seen.add(s.companyId);
-      return true;
+      return isDisplayableEntityName(s.company.name);
     })
     .map((s) => ({
       id: s.company.id,
@@ -151,7 +152,7 @@ async function getData() {
     counts: countLevels(rows),
     queue,
     trending,
-    alerts,
+    alerts: alerts.filter((alert) => isDisplayableEntityName(alert.company.name)).slice(0, 8),
     sectors,
     movers,
   };

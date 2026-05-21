@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getDashboardCounts } from "@/lib/dashboard-counts";
+import { isDisplayableEntityName } from "@/lib/entity-display";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET() {
     recentPressure(),
     latestMovers(),
     prisma.alert.findMany({
-      take: 10,
+      take: 30,
       orderBy: { createdAt: "desc" },
       include: { company: { select: { id: true, name: true } } },
     }),
@@ -32,17 +33,26 @@ export async function GET() {
   return NextResponse.json(
     {
       totals,
-      topRisk: topRiskRows.map(toCompanySummary),
-      trending: trendingRows.map(toCompanySummary),
-      recentAlerts: alerts,
-      movers: moverRows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        ticker: row.ticker,
-        score: row.score,
-        band: row.band,
-        delta7d: row.delta7d ?? 0,
-      })),
+      topRisk: topRiskRows
+        .filter((row) => isDisplayableEntityName(row.name))
+        .slice(0, 8)
+        .map(toCompanySummary),
+      trending: trendingRows
+        .filter((row) => isDisplayableEntityName(row.name))
+        .slice(0, 8)
+        .map(toCompanySummary),
+      recentAlerts: alerts.filter((alert) => isDisplayableEntityName(alert.company.name)).slice(0, 10),
+      movers: moverRows
+        .filter((row) => isDisplayableEntityName(row.name))
+        .slice(0, 10)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          ticker: row.ticker,
+          score: row.score,
+          band: row.band,
+          delta7d: row.delta7d ?? 0,
+        })),
     },
     { headers: { "Cache-Control": "no-store" } },
   );
@@ -69,7 +79,7 @@ function topRisk() {
     FROM latest
     JOIN companies c ON c.id = latest."companyId"
     ORDER BY latest.score DESC, latest."recentCases" DESC
-    LIMIT 8
+    LIMIT 30
   `;
 }
 
@@ -94,7 +104,7 @@ function recentPressure() {
     FROM latest
     JOIN companies c ON c.id = latest."companyId"
     ORDER BY latest."recentCases" DESC, latest.score DESC
-    LIMIT 8
+    LIMIT 30
   `;
 }
 
@@ -121,7 +131,7 @@ function latestMovers() {
     WHERE latest."delta7d" IS NOT NULL
       AND latest."delta7d" != 0
     ORDER BY ABS(latest."delta7d") DESC
-    LIMIT 10
+    LIMIT 50
   `;
 }
 
