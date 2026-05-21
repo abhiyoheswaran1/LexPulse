@@ -2,15 +2,25 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getDashboardCounts } from "@/lib/dashboard-counts";
 
+export const dynamic = "force-dynamic";
+
+type DashboardCompanyRow = {
+  id: string;
+  name: string;
+  ticker: string | null;
+  caseCount: bigint;
+  score: number;
+  band: string;
+  recentCases: number;
+  delta7d: number | null;
+};
+
 // Aggregated dashboard payload — single round-trip for the home page.
 export async function GET() {
-  const [companies, alerts, totals] = await Promise.all([
-    prisma.company.findMany({
-      include: {
-        scores: { orderBy: { computedAt: "desc" }, take: 1 },
-        _count: { select: { links: true } },
-      },
-    }),
+  const [topRiskRows, trendingRows, moverRows, alerts, totals] = await Promise.all([
+    topRisk(),
+    recentPressure(),
+    latestMovers(),
     prisma.alert.findMany({
       take: 10,
       orderBy: { createdAt: "desc" },
@@ -19,53 +29,109 @@ export async function GET() {
     getDashboardCounts(),
   ]);
 
-  const ranked = companies
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      caseCount: c._count.links,
-      score: c.scores[0]?.score ?? 0,
-      band: c.scores[0]?.band ?? "low",
-      recentCases: c.scores[0]?.recentCases ?? 0,
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  const trending = [...ranked].sort((a, b) => b.recentCases - a.recentCases).slice(0, 8);
-
-  // 7d movers: latest v2 snapshot per company with non-zero delta7d.
-  const moverSnapshots = await prisma.riskScore.findMany({
-    where: {
-      delta7d: { not: null },
-      NOT: { delta7d: 0 },
-      scoreVersion: "v2",
+  return NextResponse.json(
+    {
+      totals,
+      topRisk: topRiskRows.map(toCompanySummary),
+      trending: trendingRows.map(toCompanySummary),
+      recentAlerts: alerts,
+      movers: moverRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        ticker: row.ticker,
+        score: row.score,
+        band: row.band,
+        delta7d: row.delta7d ?? 0,
+      })),
     },
-    orderBy: { computedAt: "desc" },
-    take: 1000,
-    include: { company: { select: { id: true, name: true, ticker: true } } },
-  });
-  const seenMover = new Set<string>();
-  const movers = moverSnapshots
-    .filter((s) => {
-      if (seenMover.has(s.companyId)) return false;
-      seenMover.add(s.companyId);
-      return true;
-    })
-    .map((s) => ({
-      id: s.company.id,
-      name: s.company.name,
-      ticker: s.company.ticker,
-      score: s.score,
-      band: s.band,
-      delta7d: s.delta7d!,
-    }))
-    .sort((a, b) => Math.abs(b.delta7d) - Math.abs(a.delta7d))
-    .slice(0, 10);
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
 
-  return NextResponse.json({
-    totals,
-    topRisk: ranked.slice(0, 8),
-    trending,
-    recentAlerts: alerts,
-    movers,
-  });
+function topRisk() {
+  return prisma.$queryRaw<DashboardCompanyRow[]>`
+    WITH latest AS (
+      SELECT DISTINCT ON ("companyId")
+        "companyId", score, band, "caseCount", "recentCases", "delta7d", "computedAt"
+      FROM risk_scores
+      WHERE "scoreVersion" = 'v3'
+      ORDER BY "companyId", "computedAt" DESC
+    )
+    SELECT
+      c.id,
+      c.name,
+      c.ticker,
+      latest."caseCount"::BIGINT AS "caseCount",
+      latest.score,
+      latest.band,
+      latest."recentCases",
+      latest."delta7d"
+    FROM latest
+    JOIN companies c ON c.id = latest."companyId"
+    ORDER BY latest.score DESC, latest."recentCases" DESC
+    LIMIT 8
+  `;
+}
+
+function recentPressure() {
+  return prisma.$queryRaw<DashboardCompanyRow[]>`
+    WITH latest AS (
+      SELECT DISTINCT ON ("companyId")
+        "companyId", score, band, "caseCount", "recentCases", "delta7d", "computedAt"
+      FROM risk_scores
+      WHERE "scoreVersion" = 'v3'
+      ORDER BY "companyId", "computedAt" DESC
+    )
+    SELECT
+      c.id,
+      c.name,
+      c.ticker,
+      latest."caseCount"::BIGINT AS "caseCount",
+      latest.score,
+      latest.band,
+      latest."recentCases",
+      latest."delta7d"
+    FROM latest
+    JOIN companies c ON c.id = latest."companyId"
+    ORDER BY latest."recentCases" DESC, latest.score DESC
+    LIMIT 8
+  `;
+}
+
+function latestMovers() {
+  return prisma.$queryRaw<DashboardCompanyRow[]>`
+    WITH latest AS (
+      SELECT DISTINCT ON ("companyId")
+        "companyId", score, band, "caseCount", "recentCases", "delta7d", "computedAt"
+      FROM risk_scores
+      WHERE "scoreVersion" = 'v3'
+      ORDER BY "companyId", "computedAt" DESC
+    )
+    SELECT
+      c.id,
+      c.name,
+      c.ticker,
+      latest."caseCount"::BIGINT AS "caseCount",
+      latest.score,
+      latest.band,
+      latest."recentCases",
+      latest."delta7d"
+    FROM latest
+    JOIN companies c ON c.id = latest."companyId"
+    WHERE latest."delta7d" IS NOT NULL
+      AND latest."delta7d" != 0
+    ORDER BY ABS(latest."delta7d") DESC
+    LIMIT 10
+  `;
+}
+
+function toCompanySummary(row: DashboardCompanyRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    caseCount: Number(row.caseCount),
+    score: row.score,
+    band: row.band,
+    recentCases: row.recentCases,
+  };
 }

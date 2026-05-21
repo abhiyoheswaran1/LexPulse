@@ -5,6 +5,8 @@ export type DashboardCounts = DashboardEntityCountsInput & {
   trackedEntities: number;
   cases: number;
   activeAlerts: number;
+  latestScoreAt: Date | null;
+  latestCaseFiledAt: Date | null;
 };
 
 export async function getDashboardCounts(): Promise<DashboardCounts> {
@@ -17,6 +19,8 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
       unresolvedObservedParties: bigint;
       cases: bigint;
       activeAlerts: bigint;
+      latestScoreAt: Date | null;
+      latestCaseFiledAt: Date | null;
     }>
   >`
     SELECT
@@ -28,7 +32,9 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
         SELECT 1 FROM entity_matches em WHERE em."observedPartyId" = op.id
       )) AS "unresolvedObservedParties",
       (SELECT COUNT(*) FROM cases) AS cases,
-      (SELECT COUNT(*) FROM alerts) AS "activeAlerts"
+      (SELECT COUNT(*) FROM alerts) AS "activeAlerts",
+      (SELECT MAX("computedAt") FROM risk_scores WHERE "scoreVersion" = 'v3') AS "latestScoreAt",
+      (SELECT MAX("dateFiled") FROM cases) AS "latestCaseFiledAt"
   `;
 
   return {
@@ -41,5 +47,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     }),
     cases: Number(summary.cases),
     activeAlerts: Number(summary.activeAlerts),
+    latestScoreAt: summary.latestScoreAt,
+    latestCaseFiledAt: summary.latestCaseFiledAt,
   };
 }

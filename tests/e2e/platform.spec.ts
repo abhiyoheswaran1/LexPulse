@@ -5,10 +5,10 @@ const modifier = process.platform === "darwin" ? "Meta" : "Control";
 test("dashboard loads the analyst workspace", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Portfolio monitor" })).toBeVisible();
-  await expect(page.getByText("SEC universe")).toBeVisible();
-  await expect(page.getByText("Litigation-linked")).toBeVisible();
-  await expect(page.getByText("Risk-scored")).toBeVisible();
-  await expect(page.getByText("Unresolved parties")).toBeVisible();
+  await expect(page.getByText("SEC universe", { exact: true })).toBeVisible();
+  await expect(page.getByText("Litigation-linked", { exact: true })).toBeVisible();
+  await expect(page.getByText("Risk-scored", { exact: true })).toBeVisible();
+  await expect(page.getByText("Unresolved parties", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /command/i })).toBeVisible();
 });
 
@@ -79,10 +79,30 @@ test("settings exposes account persistence and workspace preferences", async ({ 
 test("status page and health endpoint are available", async ({ page, request }) => {
   const health = await request.get("/api/health");
   expect([200, 503]).toContain(health.status());
+  expect(health.headers()["cache-control"]).toContain("no-store");
 
   await page.goto("/status");
   await expect(page.getByRole("heading", { name: "Platform status" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Coverage" })).toBeVisible();
+});
+
+test("dashboard API exposes explicit entity counts without caching", async ({ request }) => {
+  const response = await request.get("/api/dashboard");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+
+  const payload = await response.json() as {
+    totals?: {
+      secListedUniverse?: number;
+      litigationLinkedCompanies?: number;
+      riskScoredCompanies?: number;
+      unresolvedObservedParties?: number;
+    };
+  };
+  expect(payload.totals?.secListedUniverse).toBeGreaterThanOrEqual(0);
+  expect(payload.totals?.litigationLinkedCompanies).toBeGreaterThanOrEqual(0);
+  expect(payload.totals?.riskScoredCompanies).toBeGreaterThanOrEqual(0);
+  expect(payload.totals?.unresolvedObservedParties).toBeGreaterThanOrEqual(0);
 });
 
 test("coverage monitor exposes data-platform health", async ({ page, request }) => {

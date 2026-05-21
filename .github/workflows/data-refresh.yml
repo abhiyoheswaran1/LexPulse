@@ -71,3 +71,4 @@ jobs:
           npm run expand:sectors
           npm run seed:judges
           npm run risk
+          npm run dedupe:alerts

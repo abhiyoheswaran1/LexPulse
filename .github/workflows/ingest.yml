@@ -63,4 +63,6 @@ jobs:
           npm run seed:judges
 
       - name: Compute risk snapshots
-        run: npm run risk
+        run: |
+          npm run risk
+          npm run dedupe:alerts

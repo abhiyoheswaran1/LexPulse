@@ -18,12 +18,14 @@ import {
 import { generateDrivers, type DriverSnapshot, type NewCase } from "../src/lib/drivers";
 import { computeBenchmark } from "../src/lib/benchmarks";
 import type { JudgeProfileLite } from "../src/lib/judges";
+import { hasRecentEquivalentAlert } from "../src/lib/alert-dedupe";
 
 const ONE_DAY = 86400000;
 
 type CompanyRow = Awaited<ReturnType<typeof loadCompanies>>[number];
 
-async function loadCompanies() {
+async function loadCompanies(now: Date) {
+  const oneDayAgo = new Date(now.getTime() - ONE_DAY);
   return prisma.company.findMany({
     select: {
       id: true,
@@ -47,7 +49,17 @@ async function loadCompanies() {
         orderBy: { computedAt: "desc" },
         take: 100, // headroom for delta lookups even with multiple-runs-per-day
       },
-      alerts: { where: { type: "new_case" }, select: { refs: true }, take: 200 },
+      alerts: {
+        where: {
+          OR: [
+            { type: "new_case" },
+            { type: "risk_jump", createdAt: { gte: oneDayAgo } },
+            { type: "case_spike", createdAt: { gte: oneDayAgo } },
+          ],
+        },
+        select: { type: true, refs: true, createdAt: true },
+        take: 400,
+      },
     },
   });
 }
@@ -103,11 +115,11 @@ function findScoreNDaysAgo(
 }
 
 async function main() {
+  const now = new Date();
   const [companies, judgeProfiles] = await Promise.all([
-    loadCompanies(),
+    loadCompanies(now),
     loadJudgeProfiles(),
   ]);
-  const now = new Date();
 
   // --- Pass 1 ---
   const computed: Array<{
@@ -264,7 +276,15 @@ async function main() {
     // --- Alerts (buffered) ---
     // risk_jump only fires when comparing same-version scores; first v3
     // snapshot per company doesn't generate a methodology-change false alarm.
-    if (latestPriorV3 && v3.score - latestPriorV3.score >= 15) {
+    if (
+      latestPriorV3 &&
+      v3.score - latestPriorV3.score >= 15 &&
+      !hasRecentEquivalentAlert(co.alerts, {
+        type: "risk_jump",
+        createdAt: now,
+        refs: { from: latestPriorV3.score, to: v3.score },
+      })
+    ) {
       alertBuf.push({
         companyId: co.id,
         type: "risk_jump",
@@ -318,14 +338,23 @@ async function main() {
       else if (f >= oneEightyAgo) prior150++;
     }
     const monthlyBaseline = prior150 / 5;
-    if (last30 >= Math.max(3, 2 * monthlyBaseline) && last30 > 0) {
+    const spikeRefs = { last30, baseline: Number(monthlyBaseline.toFixed(2)) };
+    if (
+      last30 >= Math.max(3, 2 * monthlyBaseline) &&
+      last30 > 0 &&
+      !hasRecentEquivalentAlert(co.alerts, {
+        type: "case_spike",
+        createdAt: now,
+        refs: spikeRefs,
+      })
+    ) {
       alertBuf.push({
         companyId: co.id,
         type: "case_spike",
         severity: "warn",
         title: `Spike in filings: ${last30} cases in last 30 days`,
         body: `${co.name} saw ${last30} new filings vs a baseline of ${monthlyBaseline.toFixed(1)}/month.`,
-        refs: { last30, baseline: Number(monthlyBaseline.toFixed(2)) },
+        refs: spikeRefs,
       });
       alerts++;
     }

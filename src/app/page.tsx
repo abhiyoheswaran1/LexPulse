@@ -189,6 +189,20 @@ export default async function DashboardPage() {
           <Stat label="Cases" value={data.totals.cases.toLocaleString()} />
           <Stat label="Active alerts" value={data.totals.activeAlerts.toLocaleString()} />
         </dl>
+        <div className="mt-4 flex flex-col gap-2 text-xs leading-5 text-muted sm:flex-row sm:items-center sm:justify-between xl:max-w-5xl">
+          <div className="space-y-1">
+            <p>
+              SEC universe is the canonical master list; litigation-linked and risk-scored counts are the active product surface.
+            </p>
+            <p>
+              Scores updated {data.totals.latestScoreAt ? formatRelative(data.totals.latestScoreAt) : "not yet"}; latest case filed{" "}
+              {data.totals.latestCaseFiledAt ? data.totals.latestCaseFiledAt.toISOString().slice(0, 10) : "unknown"}.
+            </p>
+          </div>
+          <Link href="/coverage" className="w-fit text-accent transition hover:text-accent2">
+            View data coverage
+          </Link>
+        </div>
       </header>
 
       <DashboardPersonalization />
