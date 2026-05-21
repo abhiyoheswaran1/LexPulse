@@ -16,7 +16,7 @@ export function SavedSearches({ currentQuery }: { currentQuery: string }) {
       <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold">Saved searches</h2>
-          <p className="mt-0.5 text-xs text-muted">Stored in this browser until account workspaces ship.</p>
+          <p className="mt-0.5 text-xs text-muted">Synced to this account workspace.</p>
         </div>
         <button
           type="button"

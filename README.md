@@ -130,8 +130,8 @@ All templates have unit-test fixtures in `src/lib/__tests__/drivers.test.ts`.
 - **Hosting** — Vercel (frontend + API), Supabase (Postgres)
 - **CI/CD** — GitHub Actions (weekly ingest, nightly risk recompute)
 - **Charts** — Recharts
-- **Tests** — Vitest (71 tests across 7 modules)
-- **Fonts** — Inter, Bricolage Grotesque, JetBrains Mono
+- **Tests** — Vitest unit coverage plus Playwright e2e smoke coverage
+- **Fonts** — IBM Plex Sans, Fraunces, JetBrains Mono
 
 ---
 
@@ -174,7 +174,8 @@ npm run dev
 ## Tests
 
 ```bash
-npm test          # vitest, 71 tests
+npm test          # vitest, 146 tests
+npm run test:e2e  # Playwright browser smoke tests
 npm run typecheck # tsc --noEmit
 npm run build     # next build (smoke)
 ```

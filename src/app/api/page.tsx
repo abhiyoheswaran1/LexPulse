@@ -16,8 +16,8 @@ export default function ApiDocsPage() {
             API reference
           </h1>
           <p className="text-sm text-muted mt-2 max-w-2xl leading-relaxed">
-            Public read-only endpoints. Stable across the v3.0 methodology revision. Authentication
-            and rate limiting are not yet enforced. Both arrive with the platform-shell milestone.
+            Public read-only endpoints plus workspace and health endpoints. API keys can be created
+            from Settings; strict per-key enforcement is the next billing gate.
           </p>
         </div>
         <Link
@@ -215,9 +215,31 @@ export default function ApiDocsPage() {
 }`}
       />
 
+      <Endpoint
+        method="GET"
+        path="/api/health"
+        description="Uptime-check endpoint with database health and latest score/alert timestamps."
+        example={`{
+  "ok": true,
+  "database": { "ok": true, "latencyMs": 42 },
+  "latestScoreAt": "2026-05-21T..."
+}`}
+      />
+
+      <Endpoint
+        method="GET"
+        path="/api/status"
+        description="Full operational status payload: freshness, coverage, integration readiness, and short-horizon counters."
+        example={`{
+  "ok": true,
+  "coverage": { "companies": 6969, "scoredCompanies": 6969 },
+  "integrations": { "sentry": true, "slack": false, "email": false, "billing": false }
+}`}
+      />
+
       <Panel title="Coming soon" subtitle="Tracked in the platform-shell milestone">
         <ul className="space-y-2 text-sm leading-relaxed max-w-[68ch]">
-          <Bullet>API tokens with per-key rate limits</Bullet>
+          <Bullet>Per-key rate limits and usage analytics</Bullet>
           <Bullet>Webhook delivery for new alerts</Bullet>
           <Bullet>Streaming risk-snapshot diffs over server-sent events</Bullet>
           <Bullet>Embeddable widget for partner integrations (KYB platforms)</Bullet>

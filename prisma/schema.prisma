@@ -52,6 +52,7 @@ model Company {
   alerts       Alert[]
   edgarFilings SecEdgarFiling[]
   backtestObs  BacktestObservation[]
+  watchlists   AccountWatchlist[]
 
   @@index([name])
   @@index([sectorKey])
@@ -296,8 +297,150 @@ model Alert {
   read      Boolean  @default(false)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  states  AccountAlertState[]
 
   @@index([createdAt])
   @@index([companyId])
   @@map("alerts")
+}
+
+model Account {
+  id         String    @id @default(cuid())
+  email      String?   @unique
+  name       String?
+  plan       String    @default("starter")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSeenAt DateTime?
+
+  preference        AccountPreference?
+  watchlist         AccountWatchlist[]
+  savedSearches     AccountSavedSearch[]
+  savedAlertFilters AccountSavedAlertFilter[]
+  alertStates       AccountAlertState[]
+  notes             WorkflowNote[]
+  apiKeys           ApiKey[]
+  auditLogs         AuditLog[]
+
+  @@map("accounts")
+}
+
+model AccountPreference {
+  accountId          String   @id
+  defaultWorkspace   String   @default("analyst")
+  onboardingComplete Boolean  @default(false)
+  digestFrequency    String   @default("daily")
+  digestChannel      String   @default("none")
+  alertThreshold     String   @default("review")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("account_preferences")
+}
+
+model AccountWatchlist {
+  id        String   @id @default(cuid())
+  accountId String
+  companyId String
+  savedAt   DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, companyId])
+  @@index([companyId])
+  @@map("account_watchlist")
+}
+
+model AccountSavedSearch {
+  id        String   @id @default(cuid())
+  accountId String
+  query     String
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, query])
+  @@map("account_saved_searches")
+}
+
+model AccountSavedAlertFilter {
+  id        String   @id @default(cuid())
+  accountId String
+  name      String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, name])
+  @@map("account_saved_alert_filters")
+}
+
+model AccountAlertState {
+  id         String    @id @default(cuid())
+  accountId  String
+  alertId    String
+  readAt     DateTime?
+  reviewedAt DateTime?
+  assignedTo String?
+  note       String?
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  alert   Alert   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, alertId])
+  @@index([alertId])
+  @@map("account_alert_states")
+}
+
+model WorkflowNote {
+  id         String   @id @default(cuid())
+  accountId  String
+  targetType String
+  targetId   String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, targetType, targetId])
+  @@map("workflow_notes")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  accountId  String
+  name       String
+  prefix     String    @unique
+  keyHash    String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  accountId  String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
 }

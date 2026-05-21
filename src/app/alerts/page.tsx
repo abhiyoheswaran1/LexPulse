@@ -62,7 +62,7 @@ export default async function AlertsPage() {
         <div className="text-xs uppercase tracking-[0.18em] text-muted">Signal feed</div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Alerts</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-          Filter recent changes by impact, sector, company, type, and read state. Read state is stored in this browser.
+          Filter recent changes by impact, sector, company, type, and review state. Saved filters and reviewed state sync to your account workspace.
         </p>
       </header>
 

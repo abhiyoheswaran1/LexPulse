@@ -8,6 +8,7 @@ import {
   Bell,
   Bookmark,
   BookOpen,
+  ClipboardList,
   LayoutDashboard,
   ListChecks,
   Map,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { useWorkflowState } from "./workflow/useWorkflowState";
+import { StatusPill } from "./platform/StatusPill";
 import { cn } from "@/lib/utils";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
@@ -62,6 +64,7 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
       <nav className="hidden p-3 text-sm md:block md:space-y-0.5">
         <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" pathname={pathname} />
         <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" pathname={pathname} />
+        <AdvancedNavItem href="/workflow" icon={<ClipboardList className="size-4" />} label="Workflow" pathname={pathname} />
         <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
         <AdvancedNavItem
           href="/alerts"
@@ -77,6 +80,7 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
         <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" pathname={pathname} />
         <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" pathname={pathname} />
         <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
+        <AdvancedNavItem href="/status" icon={<span className="size-2 rounded-full bg-accent" />} label="Status" pathname={pathname} />
         <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" pathname={pathname} />
       </nav>
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic md:block">
@@ -137,13 +141,7 @@ function AdvancedTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
         <Link href="/settings" className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition">
           Settings
         </Link>
-        <div className="flex items-center gap-2 text-[11px] text-muted font-mono tracking-[0.18em] uppercase">
-          <span className="relative flex size-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-accent" />
-          </span>
-          live
-        </div>
+        <StatusPill />
       </div>
     </div>
   );
@@ -153,7 +151,7 @@ function AdvancedMobileNav({ pathname }: { pathname: string }) {
   return (
     <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-xl border border-border bg-panel/95 p-1 shadow-2xl shadow-black/30 backdrop-blur md:hidden">
       <MobileNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Home" pathname={pathname} />
-      <MobileNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watch" pathname={pathname} />
+      <MobileNavItem href="/workflow" icon={<ClipboardList className="size-4" />} label="Flow" pathname={pathname} />
       <MobileNavItem href="/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
       <MobileNavItem
         href="/alerts"
@@ -248,6 +246,15 @@ function AdvancedFooter() {
           </Link>
           <Link href="/api" className="hover:text-fg">
             API
+          </Link>
+          <Link href="/status" className="hover:text-fg">
+            Status
+          </Link>
+          <Link href="/support" className="hover:text-fg">
+            Support
+          </Link>
+          <Link href="/legal" className="hover:text-fg">
+            Legal
           </Link>
           <Link href="https://github.com/abhiyoheswaran1/LexPulse" className="hover:text-fg">
             GitHub
@@ -372,10 +379,7 @@ function SimpleTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
         >
           Settings
         </Link>
-        <div className="flex items-center gap-2 text-[11px] text-[hsl(33_14%_43%)] font-mono tracking-[0.18em] uppercase">
-          <span className="relative flex size-1.5 rounded-full bg-[hsl(34_82%_34%)]" />
-          live
-        </div>
+        <StatusPill light />
       </div>
     </div>
   );
@@ -409,6 +413,12 @@ function SimpleFooter() {
           </Link>
           <Link href="/api" className="hover:text-[hsl(34_24%_14%)]">
             API
+          </Link>
+          <Link href="/status" className="hover:text-[hsl(34_24%_14%)]">
+            Status
+          </Link>
+          <Link href="/support" className="hover:text-[hsl(34_24%_14%)]">
+            Support
           </Link>
         </div>
       </div>

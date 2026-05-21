@@ -4,6 +4,7 @@ import {
   addSavedSearch,
   markAlertRead,
   markAlertUnread,
+  mergeWorkflowStates,
   parseWorkflowState,
   removeWatchlistCompany,
   toggleWatchlistCompany,
@@ -111,5 +112,50 @@ describe("workflow state helpers", () => {
     const read = markAlertRead(markAlertRead(empty, "alert_1"), "alert_1");
     expect(read.readAlertIds).toEqual(["alert_1"]);
     expect(markAlertUnread(read, "alert_1").readAlertIds).toEqual([]);
+  });
+
+  test("merges local and remote workflow state for account sync", () => {
+    const local: WorkflowState = {
+      version: 1,
+      watchlist: [{ id: "co_1", name: "Local Co", savedAt: "2026-05-21T01:00:00.000Z" }],
+      savedSearches: [{ id: "search_local", query: "Apple", createdAt: "2026-05-21T01:00:00.000Z" }],
+      savedAlertFilters: [],
+      readAlertIds: ["alert_1"],
+    };
+    const remote: WorkflowState = {
+      version: 1,
+      watchlist: [
+        { id: "co_1", name: "Remote Co", savedAt: "2026-05-21T00:00:00.000Z" },
+        { id: "co_2", name: "Remote Two", savedAt: "2026-05-21T00:00:00.000Z" },
+      ],
+      savedSearches: [{ id: "search_remote", query: "apple", createdAt: "2026-05-21T00:00:00.000Z" }],
+      savedAlertFilters: [
+        {
+          id: "filter_remote",
+          name: "Review",
+          createdAt: "2026-05-21T00:00:00.000Z",
+          filters: { impact: "review", sector: "all", type: "all", read: "all", company: "", watchlistOnly: false },
+        },
+      ],
+      readAlertIds: ["alert_2"],
+    };
+
+    expect(mergeWorkflowStates(local, remote)).toEqual({
+      version: 1,
+      watchlist: [
+        { id: "co_1", name: "Local Co", savedAt: "2026-05-21T01:00:00.000Z" },
+        { id: "co_2", name: "Remote Two", savedAt: "2026-05-21T00:00:00.000Z" },
+      ],
+      savedSearches: [{ id: "search_local", query: "Apple", createdAt: "2026-05-21T01:00:00.000Z" }],
+      savedAlertFilters: [
+        {
+          id: "filter_remote",
+          name: "Review",
+          createdAt: "2026-05-21T00:00:00.000Z",
+          filters: { impact: "review", sector: "all", type: "all", read: "all", company: "", watchlistOnly: false },
+        },
+      ],
+      readAlertIds: ["alert_2", "alert_1"],
+    });
   });
 });

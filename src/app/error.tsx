@@ -1,8 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
-export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    void fetch("/api/errors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: error.message, digest: error.digest, path: pathname }),
+    }).catch(() => undefined);
+  }, [error, pathname]);
+
   return (
     <div className="rounded-xl border border-bad/30 bg-bad/10 p-6">
       <div className="flex items-start gap-3">

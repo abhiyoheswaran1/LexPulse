@@ -306,6 +306,19 @@ function ImpactPill({ level, label }: { level: AttentionLevel; label: string }) 
 }
 
 function SourceDrawer({ alert, onClose }: { alert: AlertWorkbenchRow; onClose: () => void }) {
+  const [assignedTo, setAssignedTo] = useState("");
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const saveWorkflow = async () => {
+    await fetch(`/api/platform/alerts/${alert.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignedTo, note, reviewed: true }),
+    });
+    setSaved(true);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-bg/60 backdrop-blur-sm" role="dialog" aria-modal="true">
       <button className="absolute inset-0 cursor-default" type="button" aria-label="Close source drawer" onClick={onClose} />
@@ -345,6 +358,34 @@ function SourceDrawer({ alert, onClose }: { alert: AlertWorkbenchRow; onClose: (
           >
             Open company profile
           </Link>
+          <div className="rounded-lg border border-border bg-panel2/35 p-4">
+            <div className="text-xs font-medium text-fg/90">Workflow</div>
+            <label className="mt-3 block">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-muted">Assigned to</span>
+              <input
+                value={assignedTo}
+                onChange={(event) => setAssignedTo(event.target.value)}
+                placeholder="Owner or team"
+                className="mt-1 w-full rounded-md border border-border bg-panel px-3 py-2 text-sm outline-none placeholder:text-muted/60 focus:border-accent/60"
+              />
+            </label>
+            <label className="mt-3 block">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-muted">Review note</span>
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="What should the desk remember?"
+                className="mt-1 min-h-24 w-full resize-y rounded-md border border-border bg-panel px-3 py-2 text-sm outline-none placeholder:text-muted/60 focus:border-accent/60"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={saveWorkflow}
+              className="mt-3 rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent"
+            >
+              {saved ? "Saved" : "Save and mark reviewed"}
+            </button>
+          </div>
         </div>
       </aside>
     </div>

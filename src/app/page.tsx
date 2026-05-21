@@ -4,6 +4,7 @@ import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
 import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
 import { DashboardPersonalization } from "@/components/workflow/DashboardPersonalization";
+import { OnboardingPanel } from "@/components/platform/OnboardingPanel";
 import { AdaptiveDataList } from "@/components/ui/AdaptiveDataList";
 import { formatRelative, cn } from "@/lib/utils";
 import {
@@ -187,6 +188,7 @@ export default async function DashboardPage() {
       </header>
 
       <DashboardPersonalization />
+      <OnboardingPanel />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
         <div className="space-y-6">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2, LayoutDashboard, ListChecks } from "lucide-react";
+import { PlatformSettings } from "@/components/platform/PlatformSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ const workspaces = [
 
 export default function SettingsPage() {
   return (
-    <div className="mx-auto max-w-4xl space-y-8 animate-fade-in">
+    <div className="mx-auto max-w-5xl space-y-8 animate-fade-in">
       <header className="border-b border-border pb-6">
         <div className="text-xs uppercase tracking-[0.18em] text-muted">Settings</div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Workspace</h1>
@@ -64,10 +65,11 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-border bg-panel/60 p-5">
         <h2 className="text-sm font-semibold">Preference behavior</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          The home route opens Analyst for everyone. Brief does not replace the default route, so shared
-          links and production bookmarks keep the full workflow intact.
+          The home route opens Analyst for shared links and production bookmarks. Your account preference is saved for workspace commands and future personalized entry points.
         </p>
       </section>
+
+      <PlatformSettings />
     </div>
   );
 }

@@ -70,6 +70,28 @@ export function serializeWorkflowState(state: WorkflowState): string {
   return JSON.stringify(state);
 }
 
+export function mergeWorkflowStates(local: WorkflowState, remote: WorkflowState): WorkflowState {
+  return {
+    version: 1,
+    watchlist: mergeByKey(local.watchlist, remote.watchlist, (item) => item.id, (a, b) =>
+      new Date(a.savedAt).getTime() >= new Date(b.savedAt).getTime() ? a : b,
+    ),
+    savedSearches: mergeByKey(
+      local.savedSearches,
+      remote.savedSearches,
+      (item) => normalizeSearchKey(item.query),
+      (a, b) => (new Date(a.createdAt).getTime() >= new Date(b.createdAt).getTime() ? a : b),
+    ),
+    savedAlertFilters: mergeByKey(
+      local.savedAlertFilters,
+      remote.savedAlertFilters,
+      (item) => normalizeSearchKey(item.name),
+      (a, b) => (new Date(a.createdAt).getTime() >= new Date(b.createdAt).getTime() ? a : b),
+    ).slice(0, 12),
+    readAlertIds: [...new Set([...remote.readAlertIds, ...local.readAlertIds])],
+  };
+}
+
 export function toggleWatchlistCompany(
   state: WorkflowState,
   company: Omit<StoredCompany, "savedAt"> & { savedAt?: string },
@@ -188,6 +210,17 @@ function normalizeVisibleQuery(query: string): string {
 
 function normalizeSearchKey(query: string): string {
   return normalizeVisibleQuery(query).toLowerCase();
+}
+
+function mergeByKey<T>(local: T[], remote: T[], keyFor: (item: T) => string, resolve: (local: T, remote: T) => T): T[] {
+  const byKey = new Map<string, T>();
+  for (const item of remote) byKey.set(keyFor(item), item);
+  for (const item of local) {
+    const key = keyFor(item);
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? resolve(item, existing) : item);
+  }
+  return [...byKey.values()];
 }
 
 function isStoredCompany(value: unknown): value is StoredCompany {
