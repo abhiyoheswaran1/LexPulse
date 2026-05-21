@@ -184,21 +184,26 @@ export default async function DashboardPage() {
         </dl>
       </header>
 
-      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <AttentionSummary counts={data.counts} />
-        <SectorConcentration sectors={data.sectors} />
-      </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
+        <div className="space-y-6">
+          <AttentionSummary
+            counts={data.counts}
+            queue={data.queue.slice(0, 4)}
+            trending={data.trending.slice(0, 4)}
+          />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Panel
-          title="Review queue"
-          subtitle="Companies needing attention based on score, recent movement, filings, and drivers."
-          className="lg:col-span-2"
-        >
-          <ReviewQueue rows={data.queue} />
-        </Panel>
+          <div id="review-queue">
+            <Panel
+              title="Review queue"
+              subtitle="Companies needing attention based on score, recent movement, filings, and drivers."
+            >
+              <ReviewQueue rows={data.queue} />
+            </Panel>
+          </div>
+        </div>
 
         <div className="space-y-6">
+          <SectorConcentration sectors={data.sectors} />
           <MoversPanel rows={data.movers} />
           <RecentAlerts alerts={data.alerts} />
         </div>
@@ -219,17 +224,34 @@ export default async function DashboardPage() {
   );
 }
 
-function AttentionSummary({ counts }: { counts: Record<AttentionLevel, number> }) {
+function AttentionSummary({
+  counts,
+  queue,
+  trending,
+}: {
+  counts: Record<AttentionLevel, number>;
+  queue: AttentionRow[];
+  trending: AttentionRow[];
+}) {
   return (
     <Panel
       title="Portfolio attention"
-      subtitle="Same triage model as Brief, shown in the default workflow."
+      subtitle="Triage mix, next companies to open, and the filing pressure behind the queue."
       right={<ListChecks className="size-4 text-muted" />}
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <AttentionCount level="review" value={counts.review} />
-        <AttentionCount level="monitor" value={counts.monitor} />
-        <AttentionCount level="quiet" value={counts.quiet} />
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <AttentionCount level="review" value={counts.review} />
+          <AttentionCount level="monitor" value={counts.monitor} />
+          <AttentionCount level="quiet" value={counts.quiet} />
+        </div>
+
+        <AttentionMixBar counts={counts} />
+
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+          <NextReviews rows={queue} />
+          <FilingPressure rows={trending} />
+        </div>
       </div>
     </Panel>
   );
@@ -237,13 +259,131 @@ function AttentionSummary({ counts }: { counts: Record<AttentionLevel, number> }
 
 function AttentionCount({ level, value }: { level: AttentionLevel; value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-panel2/50 px-3 py-3">
+    <div className="rounded-lg border border-border/80 bg-panel2/45 px-3 py-3 transition hover:border-fg/20 hover:bg-panel2/70">
       <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{attentionLabel(level)}</div>
       <div className="mt-2 flex items-end justify-between gap-2">
         <div className="font-mono text-2xl font-semibold leading-none tabular">{value.toLocaleString()}</div>
         <AttentionPill level={level} label={level === "review" ? "Review" : level === "monitor" ? "Watch" : "Quiet"} />
       </div>
     </div>
+  );
+}
+
+function AttentionMixBar({ counts }: { counts: Record<AttentionLevel, number> }) {
+  const total = counts.review + counts.monitor + counts.quiet;
+  const actionable = counts.review + counts.monitor;
+  const segments: Array<{ level: AttentionLevel; value: number; className: string }> = [
+    { level: "review", value: counts.review, className: "bg-bad" },
+    { level: "monitor", value: counts.monitor, className: "bg-warn" },
+    { level: "quiet", value: counts.quiet, className: "bg-ok" },
+  ];
+
+  return (
+    <div className="border-y border-border/70 py-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-medium text-fg/90">Actionable portfolio</div>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            {actionable.toLocaleString()} companies need review or monitoring before the quiet tail.
+          </p>
+        </div>
+        <div className="font-mono text-sm tabular text-muted">
+          {total > 0 ? Math.round((actionable / total) * 100) : 0}% active
+        </div>
+      </div>
+      <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-panel2">
+        {segments.map((segment) =>
+          segment.value > 0 ? (
+            <div
+              key={segment.level}
+              className={segment.className}
+              style={{ width: `${Math.max(2, (segment.value / Math.max(total, 1)) * 100)}%` }}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] uppercase tracking-[0.12em] text-muted">
+        <span>Review {counts.review.toLocaleString()}</span>
+        <span>Watch {counts.monitor.toLocaleString()}</span>
+        <span>Quiet {counts.quiet.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
+function NextReviews({ rows }: { rows: AttentionRow[] }) {
+  return (
+    <section className="min-w-0 rounded-lg border border-border/80 bg-panel2/35">
+      <header className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2.5">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Next reviews</h3>
+        <Link href="#review-queue" className="text-xs text-muted transition hover:text-accent">
+          Queue
+        </Link>
+      </header>
+      {rows.length === 0 ? (
+        <div className="px-3 py-4 text-sm text-muted">No review candidates right now.</div>
+      ) : (
+        <ul className="divide-y divide-border/60">
+          {rows.map((row, index) => (
+            <li key={row.id}>
+              <Link
+                href={`/companies/${row.id}`}
+                className="group grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-start gap-3 px-3 py-3 transition hover:bg-panel/60"
+              >
+                <span className="mt-0.5 font-mono text-xs tabular text-muted">{index + 1}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-fg/90 group-hover:text-accent">
+                    {row.name}
+                  </span>
+                  <span className="mt-1 block truncate text-xs text-muted">{row.reason}</span>
+                </span>
+                <RiskBadge score={row.score} band={row.band} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function FilingPressure({ rows }: { rows: AttentionRow[] }) {
+  const maxRecent = Math.max(1, ...rows.map((row) => row.recentCases));
+
+  return (
+    <section className="min-w-0 rounded-lg border border-border/80 bg-panel2/35">
+      <header className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2.5">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Filing pressure</h3>
+        <span className="text-xs text-muted">12mo</span>
+      </header>
+      {rows.length === 0 ? (
+        <div className="px-3 py-4 text-sm text-muted">No recent filing pressure.</div>
+      ) : (
+        <ul className="divide-y divide-border/60">
+          {rows.map((row) => (
+            <li key={row.id}>
+              <Link href={`/companies/${row.id}`} className="block px-3 py-3 transition hover:bg-panel/60">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-fg/90">{row.name}</div>
+                    <div className="mt-1 text-xs text-muted">{row.caseCount.toLocaleString()} total cases</div>
+                  </div>
+                  <div className="font-mono text-sm font-semibold tabular text-fg/85">
+                    {row.recentCases.toLocaleString()}
+                  </div>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel">
+                  <div
+                    className="h-full rounded-full bg-accent"
+                    style={{ width: `${Math.max(6, (row.recentCases / maxRecent) * 100)}%` }}
+                  />
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -266,7 +406,7 @@ function SectorConcentration({
                 <div className="truncate text-sm font-medium">{sector.label}</div>
                 <div className="mt-1 text-xs text-muted">{sector.total.toLocaleString()} companies</div>
               </div>
-              <AttentionPill level={sector.level} label={attentionLabel(sector.level)} />
+              <AttentionPill level={sector.level} label={shortAttentionLabel(sector.level)} />
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
               <MiniCount label="Review" value={sector.review} />
@@ -345,7 +485,35 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
   }
 
   return (
-    <div className="-mx-5 -mb-5 overflow-x-auto">
+    <>
+      <div className="space-y-3 sm:hidden">
+        {rows.map((row) => (
+          <Link
+            key={row.id}
+            href={`/companies/${row.id}`}
+            className="block rounded-lg border border-border/70 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-fg/95">{row.name}</div>
+                {row.ticker && <div className="mt-1 text-xs text-muted tabular">{row.ticker}</div>}
+              </div>
+              <RiskBadge score={row.score} band={row.band} />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted">{row.reason}</p>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <MiniCount label="Cases" value={row.caseCount} />
+              <MiniCount label="12mo" value={row.recentCases} />
+              <div className="rounded-md border border-border/70 bg-panel/50 px-2 py-2">
+                <div className="font-mono text-sm font-semibold tabular">{attentionLabel(row.level)}</div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-muted">Attention</div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="-mx-5 -mb-5 hidden overflow-x-auto sm:block">
       <table className="w-full min-w-[760px] text-sm">
         <thead className="border-b border-border text-xs uppercase tracking-[0.14em] text-muted">
           <tr>
@@ -385,6 +553,7 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -400,7 +569,30 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
     );
   }
   return (
-    <div className="-mx-5 -mb-5 overflow-x-auto">
+    <>
+      <div className="space-y-3 sm:hidden">
+        {rows.map((row) => (
+          <Link
+            key={row.id}
+            href={`/companies/${row.id}`}
+            className="block rounded-lg border border-border/70 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-fg/95">{row.name}</div>
+                {row.ticker && <div className="mt-1 text-xs text-muted tabular">{row.ticker}</div>}
+              </div>
+              <RiskBadge score={row.score} band={row.band} />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+              <MiniCount label="Cases" value={row.caseCount} />
+              {showRecent ? <MiniCount label="12mo" value={row.recentCases} /> : <MiniCount label="Score" value={row.score} />}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="-mx-5 -mb-5 hidden overflow-x-auto sm:block">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="border-b border-border bg-transparent text-xs uppercase tracking-[0.14em] text-muted">
           <tr>
@@ -437,6 +629,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -454,6 +647,17 @@ function AttentionPill({ level, label }: { level: AttentionLevel; label: string 
       {label}
     </span>
   );
+}
+
+function shortAttentionLabel(level: AttentionLevel): string {
+  switch (level) {
+    case "review":
+      return "Review";
+    case "monitor":
+      return "Monitor";
+    case "quiet":
+      return "Quiet";
+  }
 }
 
 function MiniCount({ label, value }: { label: string; value: number }) {

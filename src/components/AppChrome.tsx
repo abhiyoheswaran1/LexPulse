@@ -13,29 +13,30 @@ import {
   Search,
   Settings,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname?.startsWith("/simple") || pathname?.startsWith("/brief")) {
-    return <SimpleChrome>{children}</SimpleChrome>;
+    return <SimpleChrome pathname={pathname}>{children}</SimpleChrome>;
   }
-  return <AdvancedChrome>{children}</AdvancedChrome>;
+  return <AdvancedChrome pathname={pathname ?? "/"}>{children}</AdvancedChrome>;
 }
 
-function AdvancedChrome({ children }: { children: React.ReactNode }) {
+function AdvancedChrome({ children, pathname }: { children: React.ReactNode; pathname: string }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <AdvancedSidebar />
+      <AdvancedSidebar pathname={pathname} />
       <main className="flex-1 min-w-0">
         <AdvancedTopBar />
-        <div className="px-5 py-6 sm:px-8 sm:py-8 max-w-[1400px] mx-auto">{children}</div>
+        <div className="mx-auto max-w-[1520px] px-5 py-6 sm:px-8 sm:py-8 2xl:px-10">{children}</div>
         <AdvancedFooter />
       </main>
     </div>
   );
 }
 
-function AdvancedSidebar() {
+function AdvancedSidebar({ pathname }: { pathname: string }) {
   return (
     <aside className="w-full shrink-0 border-b border-border bg-panel/40 backdrop-blur-sm md:w-56 md:border-b-0 md:border-r">
       <Link href="/" className="block px-5 py-5 border-b border-border group md:py-6">
@@ -50,14 +51,14 @@ function AdvancedSidebar() {
         </div>
       </Link>
       <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
-        <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
-        <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" />
-        <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" />
-        <AdvancedNavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" />
-        <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" />
-        <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" />
-        <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" />
-        <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
+        <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" pathname={pathname} />
+        <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" pathname={pathname} />
+        <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
+        <AdvancedNavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" pathname={pathname} />
+        <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" pathname={pathname} />
+        <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" pathname={pathname} />
+        <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
+        <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" pathname={pathname} />
       </nav>
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic md:block">
         <div className="not-italic text-fg/80 font-sans font-medium mb-1.5 text-xs">v3.0, backtested</div>
@@ -74,17 +75,25 @@ function AdvancedNavItem({
   href,
   icon,
   label,
+  pathname,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  pathname: string;
 }) {
+  const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+
   return (
     <Link
       href={href}
-      className="flex shrink-0 items-center gap-2.5 px-3 py-2 rounded-md text-fg/80 hover:bg-panel2 hover:text-fg transition"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-fg/75 transition hover:bg-panel2 hover:text-fg",
+        active && "bg-panel2 text-fg shadow-[inset_0_0_0_1px_hsl(35_10%_24%)]",
+      )}
     >
-      <span className="grid size-5 place-items-center text-muted">{icon}</span>
+      <span className={cn("grid size-5 place-items-center text-muted", active && "text-accent")}>{icon}</span>
       <span>{label}</span>
     </Link>
   );
@@ -115,7 +124,7 @@ function AdvancedTopBar() {
 function AdvancedFooter() {
   return (
     <footer className="mt-12 border-t border-border bg-panel/40 px-5 py-6 text-xs text-muted sm:px-8">
-      <div className="max-w-[1400px] mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-4">
         <div>
           Litigation data via{" "}
           <Link href="https://www.courtlistener.com/" className="text-fg/80 hover:text-accent">
@@ -140,11 +149,11 @@ function AdvancedFooter() {
   );
 }
 
-function SimpleChrome({ children }: { children: React.ReactNode }) {
+function SimpleChrome({ children, pathname }: { children: React.ReactNode; pathname: string }) {
   return (
     <div className="min-h-screen bg-[hsl(38_36%_94%)] text-[hsl(34_24%_14%)]">
       <div className="flex min-h-screen flex-col md:flex-row">
-        <SimpleSidebar />
+        <SimpleSidebar pathname={pathname} />
         <main className="flex-1 min-w-0">
           <SimpleTopBar />
           <div className="px-5 py-6 sm:px-8 sm:py-8 max-w-[1320px] mx-auto">{children}</div>
@@ -155,7 +164,7 @@ function SimpleChrome({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SimpleSidebar() {
+function SimpleSidebar({ pathname }: { pathname: string }) {
   return (
     <aside className="w-full shrink-0 border-b border-[hsl(35_24%_80%)] bg-[hsl(37_32%_90%)] md:w-56 md:border-b-0 md:border-r">
       <Link href="/brief" className="block px-5 py-5 border-b border-[hsl(35_24%_80%)] group md:py-6">
@@ -170,11 +179,11 @@ function SimpleSidebar() {
         </div>
       </Link>
       <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
-        <SimpleNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" />
-        <SimpleNavItem href="/brief?view=map" icon={<Map className="size-4" />} label="Map" />
-        <SimpleNavItem href="/brief/search" icon={<Search className="size-4" />} label="Search" />
-        <SimpleNavItem href="/brief/alerts" icon={<Bell className="size-4" />} label="Alerts" />
-        <SimpleNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" />
+        <SimpleNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" pathname={pathname} />
+        <SimpleNavItem href="/brief?view=map" icon={<Map className="size-4" />} label="Map" pathname={pathname} />
+        <SimpleNavItem href="/brief/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
+        <SimpleNavItem href="/brief/alerts" icon={<Bell className="size-4" />} label="Alerts" pathname={pathname} />
+        <SimpleNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
       </nav>
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-[hsl(33_14%_43%)] leading-relaxed border-t border-[hsl(35_24%_80%)] md:block">
         Brief prioritizes what needs review. Workspace switching lives in Settings.
@@ -187,17 +196,31 @@ function SimpleNavItem({
   href,
   icon,
   label,
+  pathname,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  pathname: string;
 }) {
+  const normalizedHref = href.split("?")[0];
+  const hasQuery = href.includes("?");
+  const active =
+    !hasQuery &&
+    (normalizedHref === "/brief"
+      ? pathname === "/brief"
+      : pathname === normalizedHref || pathname.startsWith(`${normalizedHref}/`));
+
   return (
     <Link
       href={href}
-      className="flex shrink-0 items-center gap-2.5 px-3 py-2 rounded-md text-[hsl(33_14%_33%)] hover:bg-[hsl(38_30%_84%)] hover:text-[hsl(34_24%_14%)] transition"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-[hsl(33_14%_33%)] transition hover:bg-[hsl(38_30%_84%)] hover:text-[hsl(34_24%_14%)]",
+        active && "bg-[hsl(38_30%_84%)] text-[hsl(34_24%_14%)] shadow-[inset_0_0_0_1px_hsl(35_24%_76%)]",
+      )}
     >
-      <span className="grid size-5 place-items-center text-[hsl(33_14%_43%)]">{icon}</span>
+      <span className={cn("grid size-5 place-items-center text-[hsl(33_14%_43%)]", active && "text-[hsl(34_82%_34%)]")}>{icon}</span>
       <span>{label}</span>
     </Link>
   );
