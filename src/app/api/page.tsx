@@ -207,7 +207,15 @@ export default function ApiDocsPage() {
         path="/api/dashboard"
         description="Aggregated dashboard payload: totals, top risk, trending, recent alerts, and biggest movers in a single round-trip."
         example={`{
-  "totals": { "companies": 396, "cases": 1000, "alerts": 5 },
+  "totals": {
+    "trackedEntities": 7001,
+    "secListedUniverse": 7981,
+    "litigationLinkedCompanies": 6998,
+    "riskScoredCompanies": 6969,
+    "unresolvedObservedParties": 4905,
+    "cases": 101696,
+    "activeAlerts": 682
+  },
   "topRisk": [{ "id": "...", "name": "PFIZER INC", "score": 100, "band": "high" }, ...],
   "trending": [...],
   "recentAlerts": [...],

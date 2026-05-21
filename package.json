@@ -17,6 +17,7 @@
     "risk": "tsx scripts/compute-risk.ts",
     "import:company-master": "tsx scripts/import-company-master.ts",
     "match:entities": "tsx scripts/match-observed-parties.ts",
+    "promote:company-master": "tsx scripts/promote-company-master.ts",
     "fetch:courtlistener-parties": "tsx scripts/fetch-courtlistener-parties.ts",
     "fetch:external-events": "tsx scripts/fetch-external-events.ts",
     "extract:case-outcomes": "tsx scripts/extract-case-outcomes.ts",

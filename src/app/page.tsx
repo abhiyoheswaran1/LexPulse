@@ -6,6 +6,7 @@ import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
 import { DashboardPersonalization } from "@/components/workflow/DashboardPersonalization";
 import { OnboardingPanel } from "@/components/platform/OnboardingPanel";
 import { AdaptiveDataList } from "@/components/ui/AdaptiveDataList";
+import { getDashboardCounts } from "@/lib/dashboard-counts";
 import { formatRelative, cn } from "@/lib/utils";
 import {
   attentionLabel,
@@ -86,7 +87,7 @@ async function getData() {
       orderBy: { createdAt: "desc" },
       include: { company: { select: { id: true, name: true } } },
     }),
-    Promise.all([prisma.company.count(), prisma.case.count(), prisma.alert.count()]),
+    getDashboardCounts(),
     prisma.riskScore.findMany({
       where: {
         delta7d: { not: null },
@@ -146,7 +147,7 @@ async function getData() {
     .slice(0, 10);
 
   return {
-    totals: { companies: totals[0], cases: totals[1], alerts: totals[2] },
+    totals,
     counts: countLevels(rows),
     queue,
     trending,
@@ -180,10 +181,13 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-border pt-5 sm:max-w-2xl sm:grid-cols-3">
-          <Stat label="Companies" value={data.totals.companies.toLocaleString()} />
+        <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-5 sm:grid-cols-3 xl:max-w-5xl xl:grid-cols-6">
+          <Stat label="SEC universe" value={data.totals.secListedUniverse.toLocaleString()} />
+          <Stat label="Litigation-linked" value={data.totals.litigationLinkedCompanies.toLocaleString()} />
+          <Stat label="Risk-scored" value={data.totals.riskScoredCompanies.toLocaleString()} />
+          <Stat label="Unresolved parties" value={data.totals.unresolvedObservedParties.toLocaleString()} />
           <Stat label="Cases" value={data.totals.cases.toLocaleString()} />
-          <Stat label="Active alerts" value={data.totals.alerts.toLocaleString()} />
+          <Stat label="Active alerts" value={data.totals.activeAlerts.toLocaleString()} />
         </dl>
       </header>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getDashboardCounts } from "@/lib/dashboard-counts";
 
 // Aggregated dashboard payload — single round-trip for the home page.
 export async function GET() {
@@ -15,11 +16,7 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       include: { company: { select: { id: true, name: true } } },
     }),
-    Promise.all([
-      prisma.company.count(),
-      prisma.case.count(),
-      prisma.alert.count(),
-    ]),
+    getDashboardCounts(),
   ]);
 
   const ranked = companies
@@ -65,7 +62,7 @@ export async function GET() {
     .slice(0, 10);
 
   return NextResponse.json({
-    totals: { companies: totals[0], cases: totals[1], alerts: totals[2] },
+    totals,
     topRisk: ranked.slice(0, 8),
     trending,
     recentAlerts: alerts,

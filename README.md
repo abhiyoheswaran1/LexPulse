@@ -26,7 +26,8 @@ to monitor legal exposure across a watchlist without reading dockets.
 
 | | |
 |---|---|
-| Companies tracked | ~7,000 |
+| SEC-listed master universe | ~8,000 |
+| Litigation-linked entities | ~7,000 |
 | Federal civil cases | ~100,000 |
 | Judges with behavioral profiles | ~3,800 |
 | Score components | 7 (volume, recency, severity, momentum, concentration, jurisdiction, judge) |
@@ -242,6 +243,10 @@ CI runs all three on every push.
 Full reference at [lex-pulse-six.vercel.app/api](https://lex-pulse-six.vercel.app/api).
 
 `GET /api/coverage` returns company-master, entity-resolution, source-refresh, external-event, and outcome coverage metrics. The same data powers `/coverage`.
+
+`npm run promote:company-master` reconciles high-confidence `company_master` matches into product-facing
+companies, backfills case links, and keeps the dashboard distinction between SEC universe,
+litigation-linked entities, risk-scored entities, and unresolved observed parties explicit.
 
 ---
 

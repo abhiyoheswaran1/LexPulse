@@ -5,6 +5,10 @@ const modifier = process.platform === "darwin" ? "Meta" : "Control";
 test("dashboard loads the analyst workspace", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Portfolio monitor" })).toBeVisible();
+  await expect(page.getByText("SEC universe")).toBeVisible();
+  await expect(page.getByText("Litigation-linked")).toBeVisible();
+  await expect(page.getByText("Risk-scored")).toBeVisible();
+  await expect(page.getByText("Unresolved parties")).toBeVisible();
   await expect(page.getByRole("button", { name: /command/i })).toBeVisible();
 });
 
