@@ -31,7 +31,7 @@ const MAX_ROUNDS = 50;            // up to 1000 dockets per name (50 × 20)
 const MAX_RETRY_SECONDS = 120;    // skip the term if Retry-After exceeds this
 const PER_TERM_RATE_RECOVERY_MS = 4000; // pause when we get rate-limited on a single term
 
-type Args = { out: string; limit: number };
+type Args = { out: string; limit: number; since?: string };
 
 function parseArgs(): Args {
   const out: Args = { out: "/tmp/dockets.jsonl", limit: 5000 };
@@ -40,6 +40,13 @@ function parseArgs(): Args {
     const a = argv[i];
     if (a === "--out") out.out = argv[++i];
     else if (a === "--limit") out.limit = Number(argv[++i]);
+    else if (a === "--since") out.since = argv[++i];
+    else if (a === "--days") {
+      const days = Number(argv[++i]);
+      if (Number.isFinite(days) && days > 0) {
+        out.since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      }
+    }
   }
   if (Number.isNaN(out.limit) || out.limit <= 0) out.limit = 5000;
   return out;
@@ -204,6 +211,7 @@ async function main() {
   }
   const queries = loadRussellQueryTerms();
   console.log(`loaded ${queries.length} unique query terms from Russell-1000 seed`);
+  if (args.since) console.log(`date filter: dateFiled:[${args.since} TO *]`);
   console.log("using COURTLISTENER_API_TOKEN");
 
   const out = fs.createWriteStream(args.out, { flags: "w" });
@@ -216,7 +224,7 @@ async function main() {
   type Term = { q: string; nextUrl: string | null; pages: number; alive: boolean };
   const terms: Term[] = queries.map((q) => ({
     q,
-    nextUrl: `${API_BASE}/search/?q=${encodeURIComponent(`"${q}"`)}&type=r&court__jurisdiction=F&order_by=dateFiled%20desc&page_size=${PER_NAME_PAGE_SIZE}`,
+    nextUrl: `${API_BASE}/search/?q=${encodeURIComponent(args.since ? `"${q}" dateFiled:[${args.since} TO *]` : `"${q}"`)}&type=r&court__jurisdiction=F&order_by=dateFiled%20desc&page_size=${PER_NAME_PAGE_SIZE}`,
     pages: 0,
     alive: true,
   }));

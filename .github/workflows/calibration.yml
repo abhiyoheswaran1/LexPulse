@@ -37,13 +37,24 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Check EDGAR user agent
+        run: |
+          if [ -z "$EDGAR_USER_AGENT" ]; then
+            echo "EDGAR_USER_AGENT is not configured; skipping EDGAR calibration refresh."
+          else
+            echo "EDGAR_USER_AGENT configured."
+          fi
+
       - name: CIK linkage + 8-K backfill (idempotent on accession #)
+        if: env.EDGAR_USER_AGENT != ''
         run: npm run fetch:edgar -- --link --filings
 
       - name: Extract material events from 8-K excerpts
+        if: env.EDGAR_USER_AGENT != ''
         run: npm run extract:material-events
 
       - name: Walk-forward backtest (24 anchors, v3)
+        if: env.EDGAR_USER_AGENT != ''
         run: npm run backtest
 
       - name: Upload backtest output

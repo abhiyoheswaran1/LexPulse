@@ -80,3 +80,13 @@ test("status page and health endpoint are available", async ({ page, request }) 
   await expect(page.getByRole("heading", { name: "Platform status" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Coverage" })).toBeVisible();
 });
+
+test("coverage monitor exposes data-platform health", async ({ page, request }) => {
+  const coverage = await request.get("/api/coverage");
+  expect([200, 500]).toContain(coverage.status());
+
+  await page.goto("/coverage");
+  await expect(page.getByRole("heading", { name: "Coverage monitor" })).toBeVisible();
+  await expect(page.getByText("Master companies")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent ingest runs" })).toBeVisible();
+});

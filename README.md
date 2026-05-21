@@ -32,6 +32,7 @@ to monitor legal exposure across a watchlist without reading dockets.
 | Score components | 7 (volume, recency, severity, momentum, concentration, jurisdiction, judge) |
 | Driver templates | 8 (deterministic, not LLM-generated) |
 | Update cadence | Weekly ingest, nightly risk recompute |
+| Canonical company layer | SEC-listed master-company import + optional Russell 3000 / S&P 1500 tags |
 
 ---
 
@@ -97,10 +98,13 @@ Full methodology — including driver fire conditions, cohort math, and limitati
 1. **Bulk fetch** — `scripts/fetch-courtlistener-bulk.ts` streams CourtListener's published archive, decompresses on the fly, filters cases by party name match, and writes JSONL. Bounded memory; only the matched subset hits disk.
 2. **Ingestion** — `scripts/ingest.ts` round-trips per batch are O(1) regardless of batch size: `createMany` + `findMany` patterns, not per-row upserts. Idempotent via `sourceId` unique constraint.
 3. **Entity resolution** — `src/lib/resolve.ts` collapses party-string variants onto a single `Company` row via a normalization key. Allowlist for marquee names without corp suffixes (Apple, Tesla, Pfizer, ...). Reject patterns for non-companies (Schedule A defendants, court-clerk admin text, individuals).
-4. **Risk scoring** — `scripts/compute-risk.ts` two-pass: pass 1 computes breakdowns + accumulates sector cohorts; pass 2 computes percentile benchmarks against peers, generates drivers, and persists snapshots in batches of 200.
-5. **Alerts** — `risk_jump`, `case_spike`, `new_case`. Bulk-import suppression so a 50K-case backfill doesn't generate hundreds of new-case alerts.
-6. **API** — Next.js App Router route handlers; versioned response shape (`v1`/`v2`/`v3`), see `/api`.
-7. **Frontend** — Next.js App Router with ISR caching. Tailwind + Bricolage Grotesque + JetBrains Mono. Financial-dashboard aesthetic.
+4. **Company master** — `scripts/import-company-master.ts` imports SEC exchange-listed companies into `company_master`; optional local CSV imports tag Russell 3000 / S&P 1500 universes without redistributing proprietary index membership.
+5. **Observed parties + matching** — `scripts/fetch-courtlistener-parties.ts` stores party records where available, while `scripts/match-observed-parties.ts` writes auditable `entity_matches` with score, confidence, method, and review state.
+6. **Risk scoring** — `scripts/compute-risk.ts` two-pass: pass 1 computes breakdowns + accumulates sector cohorts; pass 2 computes percentile benchmarks against peers, generates drivers, and persists snapshots in batches of 200.
+7. **Alerts** — `risk_jump`, `case_spike`, `new_case`. Bulk-import suppression so a 50K-case backfill doesn't generate hundreds of new-case alerts.
+8. **External events + outcomes** — `scripts/fetch-external-events.ts` ingests free SEC litigation release and CFPB enforcement signals; `scripts/extract-case-outcomes.ts` creates deterministic first-pass outcome rows.
+9. **API** — Next.js App Router route handlers; versioned response shape (`v1`/`v2`/`v3`), see `/api`.
+10. **Frontend** — Next.js App Router with ISR caching. Tailwind + Bricolage Grotesque + JetBrains Mono. Financial-dashboard aesthetic.
 
 ---
 
@@ -160,6 +164,13 @@ npm run ingest -- --file /tmp/dockets.jsonl
 npm run seed:sectors
 npm run seed:judges
 npm run expand:sectors    # fuzzy-tag subsidiaries by name prefix
+
+# 6b. Build the canonical company/entity layer
+npm run import:company-master
+npm run fetch:courtlistener-parties -- --limit 500
+npm run match:entities -- --limit 5000
+npm run fetch:external-events -- --source all --limit 100
+npm run extract:case-outcomes -- --limit 3000
 
 # 7. Compute risk
 npm run risk
@@ -230,14 +241,16 @@ CI runs all three on every push.
 
 Full reference at [lex-pulse-six.vercel.app/api](https://lex-pulse-six.vercel.app/api).
 
+`GET /api/coverage` returns company-master, entity-resolution, source-refresh, external-event, and outcome coverage metrics. The same data powers `/coverage`.
+
 ---
 
 ## Limitations
 
 - **Federal civil only.** State courts, regulatory agency actions, arbitration, and international litigation are out of scope.
-- **No outcome data yet.** Settlement / dismissal / damages aren't extracted from docket entries; the score reflects activity, not realized loss.
-- **No real-time freshness.** Updates are bounded by upstream refresh cadence (CourtListener bulk archives + nightly recompute).
-- **Entity resolution is deterministic, not fuzzy.** Aliases, subsidiaries, and parent rollups beyond the seed catalog still leak. Targeted improvements are in `src/lib/resolve.ts`.
+- **Outcome data is first-pass.** Settlement / dismissal / judgment / injunction signals are deterministic and confidence-scored; they are not yet a complete docket-entry outcome model.
+- **Freshness has two modes.** Daily incremental jobs keep recent sources moving; CourtListener bulk archives remain quarterly snapshots.
+- **Entity resolution is deterministic and auditable.** Aliases, subsidiaries, and parent rollups now produce confidence-scored `entity_matches`; ambiguous matches still need review.
 - **Sector coverage is partial.** Companies without a ticker or unmatched in the seed set get no benchmark.
 - **The score is signal, not adjudication.** Don't make legal decisions from a number on a dashboard.
 

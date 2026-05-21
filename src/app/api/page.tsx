@@ -237,6 +237,18 @@ export default function ApiDocsPage() {
 }`}
       />
 
+      <Endpoint
+        method="GET"
+        path="/api/coverage"
+        description="Data-platform coverage payload: company master universe, entity-match confidence, outcomes, external events, and ingest-run status."
+        example={`{
+  "companyMasters": 12000,
+  "universe": { "secListed": 12000, "sp1500": 0, "russell3000": 0 },
+  "parties": { "observed": 97897, "matched": 42000, "unresolved": 55897, "matchRate": 0.43 },
+  "operations": { "staleSources": 0, "failedRuns24h": 0, "needsAttention": false }
+}`}
+      />
+
       <Panel title="Coming soon" subtitle="Tracked in the platform-shell milestone">
         <ul className="space-y-2 text-sm leading-relaxed max-w-[68ch]">
           <Bullet>Per-key rate limits and usage analytics</Bullet>

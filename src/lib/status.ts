@@ -110,7 +110,10 @@ export async function getPlatformStatus(): Promise<PlatformStatus> {
       (SELECT AVG("sectorConfidence") FROM companies WHERE "sectorConfidence" IS NOT NULL) AS "sectorConfidence",
       (SELECT COUNT(*) FROM risk_scores WHERE "computedAt" >= ${since24h}) AS "scoreSnapshots24h",
       (SELECT COUNT(*) FROM alerts WHERE "createdAt" >= ${since24h}) AS "alerts24h",
-      (SELECT COUNT(*) FROM audit_logs WHERE "createdAt" >= ${since24h} AND action LIKE '%failed%') AS "failedIngests24h",
+      (
+        (SELECT COUNT(*) FROM audit_logs WHERE "createdAt" >= ${since24h} AND action LIKE '%failed%') +
+        (SELECT COUNT(*) FROM data_ingest_runs WHERE "startedAt" >= ${since24h} AND status = 'failed')
+      ) AS "failedIngests24h",
       (SELECT MAX("computedAt") FROM risk_scores) AS "latestScoreAt",
       (SELECT MAX("createdAt") FROM alerts) AS "latestAlertAt",
       (SELECT MAX("dateFiled") FROM cases) AS "latestCaseFiledAt"

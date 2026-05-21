@@ -9,6 +9,7 @@ import {
   Bookmark,
   BookOpen,
   ClipboardList,
+  Database,
   LayoutDashboard,
   ListChecks,
   Map,
@@ -79,6 +80,7 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
         />
         <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" pathname={pathname} />
         <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" pathname={pathname} />
+        <AdvancedNavItem href="/coverage" icon={<Database className="size-4" />} label="Coverage" pathname={pathname} />
         <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
         <AdvancedNavItem href="/status" icon={<span className="size-2 rounded-full bg-accent" />} label="Status" pathname={pathname} />
         <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" pathname={pathname} />
@@ -249,6 +251,9 @@ function AdvancedFooter() {
           </Link>
           <Link href="/status" className="hover:text-fg">
             Status
+          </Link>
+          <Link href="/coverage" className="hover:text-fg">
+            Coverage
           </Link>
           <Link href="/support" className="hover:text-fg">
             Support

@@ -9,6 +9,8 @@
 html, body {
   background-color: hsl(35 16% 12%);
   color: hsl(40 14% 94%);
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {

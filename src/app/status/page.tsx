@@ -53,8 +53,15 @@ export default async function StatusPage() {
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-xl border border-border bg-panel/60">
           <header className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-semibold">Coverage</h2>
-            <p className="mt-1 text-xs text-muted">How much of the universe is scored, mapped, and source-linked.</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold">Coverage</h2>
+                <p className="mt-1 text-xs text-muted">How much of the universe is scored, mapped, and source-linked.</p>
+              </div>
+              <Link href="/coverage" className="text-xs text-muted transition hover:text-accent">
+                Details
+              </Link>
+            </div>
           </header>
           <div className="space-y-5 p-5">
             <CoverageRow label="Scored companies" value={scoreCoverage} detail={`${status.coverage.scoredCompanies.toLocaleString()} of ${status.coverage.companies.toLocaleString()}`} />

@@ -44,19 +44,67 @@ model Company {
   // calibration linkage pass (sub-project F). Null for private companies,
   // foreign entities, or unmatched names.
   cik              String?  @unique
+  companyMasterId  String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  links        CompanyCaseLink[]
-  scores       RiskScore[]
-  alerts       Alert[]
-  edgarFilings SecEdgarFiling[]
-  backtestObs  BacktestObservation[]
-  watchlists   AccountWatchlist[]
+  companyMaster  CompanyMaster?   @relation(fields: [companyMasterId], references: [id], onDelete: SetNull)
+  links          CompanyCaseLink[]
+  scores         RiskScore[]
+  alerts         Alert[]
+  edgarFilings   SecEdgarFiling[]
+  backtestObs    BacktestObservation[]
+  watchlists     AccountWatchlist[]
+  observedParties ObservedParty[]
+  externalEvents ExternalEvent[]
 
   @@index([name])
   @@index([sectorKey])
+  @@index([companyMasterId])
   @@map("companies")
+}
+
+model CompanyMaster {
+  id         String   @id @default(cuid())
+  name       String
+  normKey    String   @unique
+  ticker     String?  @unique
+  cik        String?  @unique
+  exchange   String?
+  sic        String?
+  sectorKey  String?
+  sector     Sector?  @relation(fields: [sectorKey], references: [key])
+  universe   String[] @default([])
+  source     String
+  sourceUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  aliases        CompanyAlias[]
+  companies      Company[]
+  matches        EntityMatch[]
+  externalEvents ExternalEvent[]
+
+  @@index([name])
+  @@index([sectorKey])
+  @@index([exchange])
+  @@map("company_master")
+}
+
+model CompanyAlias {
+  id              String   @id @default(cuid())
+  companyMasterId String
+  alias           String
+  normKey         String
+  source          String
+  confidence      Float
+  createdAt       DateTime @default(now())
+
+  companyMaster CompanyMaster @relation(fields: [companyMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([companyMasterId, normKey, source])
+  @@index([normKey])
+  @@map("company_aliases")
 }
 
 model Sector {
@@ -64,6 +112,7 @@ model Sector {
   label         String
   naicsPrefixes String[]
   companies     Company[]
+  masterCompanies CompanyMaster[]
 
   @@map("sectors")
 }
@@ -85,14 +134,61 @@ model Case {
   judgeId        String?
   judge          Judge?    @relation(fields: [judgeId], references: [id])
 
-  links  CompanyCaseLink[]
-  events Event[]
+  links           CompanyCaseLink[]
+  events          Event[]
+  observedParties ObservedParty[]
+  outcomes        CaseOutcome[]
 
   createdAt DateTime @default(now())
 
   @@index([dateFiled])
   @@index([natureOfSuit])
   @@map("cases")
+}
+
+model ObservedParty {
+  id        String   @id @default(cuid())
+  caseId    String
+  companyId String?
+  source    String
+  sourceId  String?
+  rawName   String
+  normKey   String
+  role      String
+  metadata  Json?
+  firstSeenAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseRef Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  matches EntityMatch[]
+
+  @@unique([caseId, rawName, role, source])
+  @@index([normKey])
+  @@index([companyId])
+  @@map("observed_parties")
+}
+
+model EntityMatch {
+  id              String   @id @default(cuid())
+  observedPartyId String
+  companyMasterId String
+  score           Float
+  method          String
+  confidence      String
+  reviewStatus    String
+  matchedAt       DateTime @default(now())
+  reviewedAt      DateTime?
+  metadata        Json?
+
+  observedParty ObservedParty @relation(fields: [observedPartyId], references: [id], onDelete: Cascade)
+  companyMaster CompanyMaster @relation(fields: [companyMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([observedPartyId, companyMasterId, method])
+  @@index([companyMasterId])
+  @@index([confidence, reviewStatus])
+  @@map("entity_matches")
 }
 
 model CompanyCaseLink {
@@ -250,6 +346,54 @@ model MaterialEvent {
   @@index([filingId])
   @@index([eventType])
   @@map("material_events")
+}
+
+model ExternalEvent {
+  id              String   @id @default(cuid())
+  source          String
+  sourceId        String
+  title           String
+  body            String?
+  url             String
+  eventType       String
+  eventDate       DateTime?
+  companyMasterId String?
+  companyId       String?
+  confidence      Float    @default(0)
+  amountUsd       Decimal? @db.Decimal(16, 2)
+  metadata        Json?
+  fetchedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  companyMaster CompanyMaster? @relation(fields: [companyMasterId], references: [id], onDelete: SetNull)
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  outcomes      CaseOutcome[]
+
+  @@unique([source, sourceId])
+  @@index([source, eventDate])
+  @@index([companyMasterId])
+  @@index([companyId])
+  @@map("external_events")
+}
+
+model CaseOutcome {
+  id              String   @id @default(cuid())
+  caseId          String
+  externalEventId String?
+  outcomeType     String
+  outcomeDate     DateTime?
+  source          String
+  confidence      Float
+  evidence        String
+  createdAt       DateTime @default(now())
+
+  caseRef       Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  externalEvent ExternalEvent? @relation(fields: [externalEventId], references: [id], onDelete: SetNull)
+
+  @@unique([caseId, outcomeType, source])
+  @@index([outcomeType])
+  @@index([externalEventId])
+  @@map("case_outcomes")
 }
 
 // Walk-forward backtest observations. One row per (anchor date × company).
@@ -443,4 +587,24 @@ model AuditLog {
   @@index([accountId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+model DataIngestRun {
+  id           String    @id @default(cuid())
+  source       String
+  jobType      String
+  status       String
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  checkpoint   Json?
+  rowsFetched  Int       @default(0)
+  rowsInserted Int       @default(0)
+  rowsUpdated  Int       @default(0)
+  rowsFailed   Int       @default(0)
+  error        String?
+  metadata     Json?
+
+  @@index([source, jobType, startedAt])
+  @@index([status, startedAt])
+  @@map("data_ingest_runs")
 }
