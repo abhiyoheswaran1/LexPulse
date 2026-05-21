@@ -5,8 +5,18 @@ import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
+import { attentionLabel, attentionLevel, attentionReason, type AttentionLevel } from "@/lib/simple-ui";
+import { cn } from "@/lib/utils";
 
-type Result = { id: string; name: string; caseCount: number; score: number; band: string };
+type Result = {
+  id: string;
+  name: string;
+  caseCount: number;
+  score: number;
+  band: string;
+  recentCases?: number | null;
+  delta7d?: number | null;
+};
 
 export default function SearchPage() {
   const [q, setQ] = useState("");
@@ -48,7 +58,7 @@ export default function SearchPage() {
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search company name…"
+          placeholder="Search company name..."
           className="w-full bg-panel/60 border border-border rounded-xl pl-11 pr-4 py-3 text-sm placeholder:text-muted/60 focus:outline-none focus:border-accent/60 focus:bg-panel transition"
         />
       </div>
@@ -57,28 +67,62 @@ export default function SearchPage() {
         {q.trim() === "" ? (
           <div className="text-sm text-muted py-6 text-center">Start typing to search.</div>
         ) : loading ? (
-          <div className="text-sm text-muted py-6 text-center">Searching…</div>
+          <div className="text-sm text-muted py-6 text-center">Searching...</div>
         ) : results.length === 0 ? (
           <div className="text-sm text-muted py-6 text-center">No matches.</div>
         ) : (
           <ul className="divide-y divide-border -mx-5">
-            {results.map((r) => (
-              <li key={r.id}>
-                <Link
-                  href={`/companies/${r.id}`}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-panel2/60"
-                >
-                  <div>
-                    <div className="text-sm font-medium">{r.name}</div>
-                    <div className="text-xs text-muted">{r.caseCount} cases on record</div>
-                  </div>
-                  <RiskBadge score={r.score} band={r.band} />
-                </Link>
-              </li>
-            ))}
+            {results.map((r) => {
+              const input = {
+                score: r.score,
+                band: r.band,
+                recentCases: r.recentCases,
+                delta7d: r.delta7d,
+              };
+              const level = attentionLevel(input);
+              return (
+                <li key={r.id}>
+                  <Link
+                    href={`/companies/${r.id}`}
+                    className="block px-5 py-4 transition hover:bg-panel2/60"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-medium">{r.name}</div>
+                          <AttentionPill level={level} label={attentionLabel(level)} />
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-muted">{attentionReason(input)}</div>
+                        <div className="mt-1 text-xs text-muted">
+                          {r.caseCount.toLocaleString()} cases on record
+                          {r.recentCases != null && r.recentCases > 0 ? `, ${r.recentCases} recent` : ""}
+                        </div>
+                      </div>
+                      <RiskBadge score={r.score} band={r.band} />
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>
     </div>
+  );
+}
+
+function AttentionPill({ level, label }: { level: AttentionLevel; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        level === "review" && "border-bad/40 bg-bad/10 text-bad",
+        level === "monitor" && "border-warn/40 bg-warn/10 text-warn",
+        level === "quiet" && "border-ok/30 bg-ok/10 text-ok",
+      )}
+    >
+      <span className="size-1.5 rounded-full bg-current opacity-75" />
+      {label}
+    </span>
   );
 }

@@ -9,6 +9,7 @@ import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
 import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 import { deriveSubScores, type RiskBreakdownV3 } from "@/lib/risk";
+import { attentionLabel, attentionLevel, attentionReason, type AttentionLevel } from "@/lib/simple-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,26 @@ export default async function CompanyPage({ params }: { params: { id: string } }
   const score = co.scores[0];
   const cases = co.links.map((l) => ({ ...l.caseRef, role: l.role }));
   const timeline = bucketByMonth(cases.map((c) => c.dateFiled));
+  const drivers = extractDrivers(score?.drivers);
+  const driverTypes = drivers.map((driver) => driver.type).filter((type): type is string => typeof type === "string");
+  const attention =
+    score &&
+    attentionLevel({
+      score: score.score,
+      band: score.band,
+      delta7d: score.delta7d,
+      recentCases: score.recentCases,
+      driverTypes,
+    });
+  const reviewReason =
+    score &&
+    attentionReason({
+      score: score.score,
+      band: score.band,
+      delta7d: score.delta7d,
+      recentCases: score.recentCases,
+      driverTypes,
+    });
 
   // v3.1 sub-scoring views derived from the persisted RiskScore. Only
   // computed for v3 snapshots (older versions don't have all factors).
@@ -122,12 +143,6 @@ export default async function CompanyPage({ params }: { params: { id: string } }
               <span>{cases.length.toLocaleString()} cases on record</span>
               {score && <span aria-hidden>·</span>}
               {score && <span>computed {formatRelative(score.computedAt)}</span>}
-              <Link
-                href={`/simple/companies/${co.id}`}
-                className="rounded-md border border-border px-2 py-1 text-fg/80 transition hover:border-accent/60 hover:text-accent"
-              >
-                Simple brief
-              </Link>
             </div>
 
             {score && (
@@ -171,8 +186,35 @@ export default async function CompanyPage({ params }: { params: { id: string } }
       </header>
 
       {score && (
+        <Panel
+          title="Review summary"
+          subtitle="Plain-language triage derived from score movement, recent cases, and drivers."
+        >
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              {attention && <AttentionPill level={attention} label={attentionLabel(attention)} />}
+              {reviewReason && <p className="mt-3 text-sm leading-6 text-fg/85">{reviewReason}</p>}
+              {drivers.length > 0 && (
+                <div className="mt-3 text-xs text-muted">
+                  Top driver: <span className="text-fg/80">{drivers[0].label}</span>
+                </div>
+              )}
+            </div>
+            <dl className="grid min-w-[280px] grid-cols-3 gap-4 text-right">
+              <Metric label="Score" value={score.score} />
+              <Metric label="12mo" value={(score.recentCases ?? 0).toLocaleString()} />
+              <Metric
+                label="7d"
+                value={score.delta7d == null ? "flat" : <DeltaValue value={score.delta7d} />}
+              />
+            </dl>
+          </div>
+        </Panel>
+      )}
+
+      {score && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <DriversPanel drivers={(score.drivers as unknown as Driver[]) ?? []} />
+          <DriversPanel drivers={drivers} />
           <BenchmarkPanel
             score={score.score}
             benchmark={
@@ -356,6 +398,22 @@ function SubScorePill({ label, value, hint }: { label: string; value: number; hi
   );
 }
 
+function AttentionPill({ level, label }: { level: AttentionLevel; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        level === "review" && "border-bad/40 bg-bad/10 text-bad",
+        level === "monitor" && "border-warn/40 bg-warn/10 text-warn",
+        level === "quiet" && "border-ok/30 bg-ok/10 text-ok",
+      )}
+    >
+      <span className="size-1.5 rounded-full bg-current opacity-75" />
+      {label}
+    </span>
+  );
+}
+
 function Metric({
   label,
   value,
@@ -435,4 +493,9 @@ function FactorList({ score }: { score: ScoreRow }) {
       ))}
     </ul>
   );
+}
+
+function extractDrivers(drivers: unknown): Driver[] {
+  if (!Array.isArray(drivers)) return [];
+  return drivers.filter((driver): driver is Driver => typeof driver === "object" && driver !== null);
 }

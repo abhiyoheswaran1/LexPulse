@@ -8,6 +8,11 @@ export type AttentionInput = {
   driverTypes?: string[] | null;
 };
 
+export type AlertImpactInput = {
+  severity: string;
+  type: string;
+};
+
 export type SectorInput = AttentionInput & {
   sector?: string | null;
   sectorLabel?: string | null;
@@ -51,6 +56,18 @@ export function attentionLabel(level: AttentionLevel): string {
     case "quiet":
       return "Quiet";
   }
+}
+
+export function alertAttentionLevel(input: AlertImpactInput): AttentionLevel {
+  if (input.severity === "critical" || input.type === "risk_jump") {
+    return "review";
+  }
+
+  if (input.severity === "warn" || input.type === "case_spike") {
+    return "monitor";
+  }
+
+  return "quiet";
 }
 
 export function attentionReason(input: AttentionInput): string {

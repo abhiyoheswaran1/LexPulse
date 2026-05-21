@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { attentionLabel, type AttentionLevel } from "@/lib/simple-ui";
+import { alertAttentionLevel, attentionLabel, type AttentionLevel } from "@/lib/simple-ui";
 import {
   AttentionPill,
   SimpleActionLink,
@@ -34,10 +34,10 @@ export default async function SimpleAlertsPage() {
   return (
     <div className="space-y-8">
       <SimplePageHeader
-        eyebrow="Simple alerts"
+        eyebrow="Brief alerts"
         title="What changed?"
-        description="Recent changes grouped by investor impact. Open a company brief for the short answer, or jump back to Advanced for the full feed."
-        action={<SimpleActionLink href="/alerts">Advanced alerts</SimpleActionLink>}
+        description="Recent changes grouped by investor impact. Open a Brief company profile for the short answer, or use Settings to return to the Analyst workspace."
+        action={<SimpleActionLink href="/settings">Workspace settings</SimpleActionLink>}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -72,14 +72,14 @@ function AlertGroup({
           {alerts.map((alert) => (
             <li key={alert.id}>
               <Link
-                href={`/simple/companies/${alert.company.id}`}
+                href={`/brief/companies/${alert.company.id}`}
                 className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-sm font-semibold text-[hsl(34_24%_14%)]">{alert.title}</h3>
                     <p className="mt-1 text-xs text-[hsl(33_14%_43%)]">
-                      {alert.company.name} · {alert.type.replace("_", " ")}
+                      {alert.company.name}, {alert.type.replace("_", " ")}
                     </p>
                     <p className="mt-2 text-sm leading-5 text-[hsl(33_14%_36%)]">{alert.body}</p>
                   </div>
@@ -97,20 +97,10 @@ function AlertGroup({
 function groupAlerts(alerts: SimpleAlert[]): Record<AttentionLevel, SimpleAlert[]> {
   return alerts.reduce(
     (acc, alert) => {
-      const level = alertLevel(alert);
+      const level = alertAttentionLevel(alert);
       acc[level].push(alert);
       return acc;
     },
     { review: [], monitor: [], quiet: [] } as Record<AttentionLevel, SimpleAlert[]>,
   );
-}
-
-function alertLevel(alert: SimpleAlert): AttentionLevel {
-  if (alert.severity === "critical" || alert.type === "risk_jump" || alert.type === "case_spike") {
-    return "review";
-  }
-  if (alert.severity === "warn" || alert.type === "new_case") {
-    return "monitor";
-  }
-  return "quiet";
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  alertAttentionLevel,
   attentionLevel,
   attentionLabel,
   attentionReason,
@@ -72,5 +73,11 @@ describe("simple-ui attention helpers", () => {
         level: "quiet",
       },
     ]);
+  });
+
+  test("groups alerts by investor impact", () => {
+    expect(alertAttentionLevel({ severity: "critical", type: "new_case" })).toBe("review");
+    expect(alertAttentionLevel({ severity: "info", type: "case_spike" })).toBe("monitor");
+    expect(alertAttentionLevel({ severity: "info", type: "new_case" })).toBe("quiet");
   });
 });

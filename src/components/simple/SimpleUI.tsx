@@ -97,10 +97,10 @@ export function SimpleTabs({
 }) {
   return (
     <div className="inline-flex rounded-lg border border-[hsl(35_24%_78%)] bg-[hsl(37_32%_90%)] p-1 text-sm">
-      <TabLink href="/simple" active={active === "queue"}>
+      <TabLink href="/brief" active={active === "queue"}>
         Queue
       </TabLink>
-      <TabLink href="/simple?view=map" active={active === "map"}>
+      <TabLink href="/brief?view=map" active={active === "map"}>
         Map
       </TabLink>
     </div>

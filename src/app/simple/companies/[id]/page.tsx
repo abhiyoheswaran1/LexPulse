@@ -63,23 +63,23 @@ export default async function SimpleCompanyPage({ params }: { params: { id: stri
   return (
     <div className="space-y-8">
       <Link
-        href="/simple"
+        href="/brief"
         className="inline-flex items-center gap-1 text-xs text-[hsl(33_14%_43%)] hover:text-[hsl(34_24%_14%)]"
       >
-        <ChevronLeft className="size-3.5" /> back to simple queue
+        <ChevronLeft className="size-3.5" /> back to Brief queue
       </Link>
 
       <SimplePageHeader
-        eyebrow="Simple company brief"
+        eyebrow="Brief company profile"
         title={company.name}
         description={
           <>
             {company.ticker && <span className="font-mono">{company.ticker}</span>}
-            {company.ticker && company.sector?.label ? " · " : ""}
-            {company.sector?.label ?? "Unclassified sector"} · {company._count.links.toLocaleString()} cases on record
+            {company.ticker && company.sector?.label ? ", " : ""}
+            {company.sector?.label ?? "Unclassified sector"}, {company._count.links.toLocaleString()} cases on record
           </>
         }
-        action={<SimpleActionLink href={`/companies/${company.id}`}>Advanced profile</SimpleActionLink>}
+        action={<SimpleActionLink href="/settings">Workspace settings</SimpleActionLink>}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -139,7 +139,7 @@ export default async function SimpleCompanyPage({ params }: { params: { id: stri
           <SimpleCardHeader
             title="Recent changes"
             subtitle="Latest alerts tied to this company."
-            right={<SimpleActionLink href="/simple/alerts">All alerts</SimpleActionLink>}
+            right={<SimpleActionLink href="/brief/alerts">All alerts</SimpleActionLink>}
           />
           {company.alerts.length === 0 ? (
             <div className="px-5 py-8 text-sm text-[hsl(33_14%_43%)]">No recent alerts.</div>
@@ -176,7 +176,7 @@ export default async function SimpleCompanyPage({ params }: { params: { id: stri
                     <div className="min-w-0">
                       <h3 className="truncate text-sm font-semibold text-[hsl(34_24%_14%)]">{caseRef.caseName}</h3>
                       <p className="mt-1 text-xs text-[hsl(33_14%_43%)]">
-                        {caseRef.court ?? "Unknown court"} · {caseRef.natureOfSuit ?? "Uncategorized"} ·{" "}
+                        {caseRef.court ?? "Unknown court"}, {caseRef.natureOfSuit ?? "Uncategorized"},{" "}
                         {formatDate(caseRef.dateFiled)}
                       </p>
                     </div>

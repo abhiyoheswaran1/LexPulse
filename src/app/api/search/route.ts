@@ -46,6 +46,8 @@ export async function GET(req: Request) {
       caseCount: c._count.links,
       score: c.scores[0]?.score ?? 0,
       band: c.scores[0]?.band ?? "low",
+      recentCases: c.scores[0]?.recentCases ?? 0,
+      delta7d: c.scores[0]?.delta7d ?? null,
     }));
 
   return NextResponse.json({ results: merged });

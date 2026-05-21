@@ -11,7 +11,15 @@ import {
   SimplePageHeader,
 } from "@/components/simple/SimpleUI";
 
-type Result = { id: string; name: string; caseCount: number; score: number; band: string };
+type Result = {
+  id: string;
+  name: string;
+  caseCount: number;
+  score: number;
+  band: string;
+  recentCases?: number | null;
+  delta7d?: number | null;
+};
 
 export default function SimpleSearchPage() {
   const [q, setQ] = useState("");
@@ -39,10 +47,10 @@ export default function SimpleSearchPage() {
   return (
     <div className="space-y-8">
       <SimplePageHeader
-        eyebrow="Simple search"
-        title="Find a company brief"
-        description="Search for a company, then open the simplified brief first. The Advanced profile remains available from every brief."
-        action={<SimpleActionLink href="/search">Advanced search</SimpleActionLink>}
+        eyebrow="Brief search"
+        title="Find a company profile"
+        description="Search for a company, then open the Brief profile first. Use Settings when you need the full Analyst workspace."
+        action={<SimpleActionLink href="/settings">Workspace settings</SimpleActionLink>}
       />
 
       <div className="relative">
@@ -66,11 +74,17 @@ export default function SimpleSearchPage() {
         ) : (
           <ul className="divide-y divide-[hsl(35_24%_84%)]">
             {results.map((r) => {
-              const level = attentionLevel({ score: r.score, band: r.band });
+              const input = {
+                score: r.score,
+                band: r.band,
+                recentCases: r.recentCases,
+                delta7d: r.delta7d,
+              };
+              const level = attentionLevel(input);
               return (
                 <li key={r.id}>
                   <Link
-                    href={`/simple/companies/${r.id}`}
+                    href={`/brief/companies/${r.id}`}
                     className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -80,7 +94,7 @@ export default function SimpleSearchPage() {
                           <AttentionPill level={level} label={attentionLabel(level)} />
                         </div>
                         <p className="mt-1 text-sm text-[hsl(33_14%_36%)]">
-                          {attentionReason({ score: r.score, band: r.band })}
+                          {attentionReason(input)}
                         </p>
                         <p className="mt-1 text-xs text-[hsl(33_14%_43%)]">
                           {r.caseCount.toLocaleString()} cases on record

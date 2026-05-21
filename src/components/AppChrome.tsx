@@ -9,11 +9,12 @@ import {
   ListChecks,
   Map,
   Search,
+  Settings,
 } from "lucide-react";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname?.startsWith("/simple")) {
+  if (pathname?.startsWith("/simple") || pathname?.startsWith("/brief")) {
     return <SimpleChrome>{children}</SimpleChrome>;
   }
   return <AdvancedChrome>{children}</AdvancedChrome>;
@@ -21,11 +22,11 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
 function AdvancedChrome({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <AdvancedSidebar />
       <main className="flex-1 min-w-0">
         <AdvancedTopBar />
-        <div className="px-8 py-8 max-w-[1400px] mx-auto">{children}</div>
+        <div className="px-5 py-6 sm:px-8 sm:py-8 max-w-[1400px] mx-auto">{children}</div>
         <AdvancedFooter />
       </main>
     </div>
@@ -34,8 +35,8 @@ function AdvancedChrome({ children }: { children: React.ReactNode }) {
 
 function AdvancedSidebar() {
   return (
-    <aside className="w-56 shrink-0 border-r border-border bg-panel/40 backdrop-blur-sm">
-      <Link href="/" className="block px-5 py-6 border-b border-border group">
+    <aside className="w-full shrink-0 border-b border-border bg-panel/40 backdrop-blur-sm md:w-56 md:border-b-0 md:border-r">
+      <Link href="/" className="block px-5 py-5 border-b border-border group md:py-6">
         <div className="flex items-baseline gap-2">
           <span className="editorial text-2xl tracking-tight">Lex</span>
           <span className="editorial text-2xl tracking-tight italic text-accent group-hover:text-fg transition">
@@ -46,19 +47,19 @@ function AdvancedSidebar() {
           litigation intel
         </div>
       </Link>
-      <nav className="p-3 space-y-0.5 text-sm">
+      <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
         <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" />
-        <AdvancedNavItem href="/simple" icon={<ListChecks className="size-4" />} label="Simple" />
         <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" />
         <AdvancedNavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" />
         <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" />
+        <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" />
         <AdvancedNavItem href="/api" icon={<span className="font-mono text-xs">{`{}`}</span>} label="API" />
       </nav>
-      <div className="px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic">
-        <div className="not-italic text-fg/80 font-sans font-medium mb-1.5 text-xs">v3.0 · backtested</div>
+      <div className="hidden px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic md:block">
+        <div className="not-italic text-fg/80 font-sans font-medium mb-1.5 text-xs">v3.0, backtested</div>
         IC 0.06 at 180-day horizon vs SEC 8-K disclosures.{" "}
         <Link href="/calibration" className="not-italic text-accent hover:underline font-sans">
-          numbers →
+          numbers
         </Link>
       </div>
     </aside>
@@ -77,7 +78,7 @@ function AdvancedNavItem({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-md text-fg/80 hover:bg-panel2 hover:text-fg transition"
+      className="flex shrink-0 items-center gap-2.5 px-3 py-2 rounded-md text-fg/80 hover:bg-panel2 hover:text-fg transition"
     >
       <span className="grid size-5 place-items-center text-muted">{icon}</span>
       <span>{label}</span>
@@ -87,16 +88,13 @@ function AdvancedNavItem({
 
 function AdvancedTopBar() {
   return (
-    <div className="h-12 border-b border-border bg-panel/40 backdrop-blur flex items-center justify-between px-8">
-      <div className="text-[10px] text-muted tracking-[0.32em] uppercase font-mono">
+    <div className="min-h-12 border-b border-border bg-panel/40 backdrop-blur flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
+      <div className="text-[10px] text-muted tracking-[0.24em] uppercase font-mono sm:tracking-[0.32em]">
         Litigation Intelligence
       </div>
       <div className="flex items-center gap-4">
-        <Link
-          href="/simple"
-          className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition"
-        >
-          Simple mode
+        <Link href="/settings" className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition">
+          Settings
         </Link>
         <div className="flex items-center gap-2 text-[11px] text-muted font-mono tracking-[0.18em] uppercase">
           <span className="relative flex size-1.5">
@@ -112,7 +110,7 @@ function AdvancedTopBar() {
 
 function AdvancedFooter() {
   return (
-    <footer className="mt-12 border-t border-border bg-panel/40 px-8 py-6 text-xs text-muted">
+    <footer className="mt-12 border-t border-border bg-panel/40 px-5 py-6 text-xs text-muted sm:px-8">
       <div className="max-w-[1400px] mx-auto flex flex-wrap items-center justify-between gap-4">
         <div>
           Litigation data via{" "}
@@ -122,13 +120,16 @@ function AdvancedFooter() {
           , licensed CC BY-ND 4.0.
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/settings" className="hover:text-fg">
+            Settings
+          </Link>
           <Link href="/api" className="hover:text-fg">
             API
           </Link>
           <Link href="https://github.com/abhiyoheswaran1/LexPulse" className="hover:text-fg">
             GitHub
           </Link>
-          <span className="text-muted/60">v0.3 · LexPulse</span>
+          <span className="text-muted/60">v0.3, LexPulse</span>
         </div>
       </div>
     </footer>
@@ -153,7 +154,7 @@ function SimpleChrome({ children }: { children: React.ReactNode }) {
 function SimpleSidebar() {
   return (
     <aside className="w-full shrink-0 border-b border-[hsl(35_24%_80%)] bg-[hsl(37_32%_90%)] md:w-56 md:border-b-0 md:border-r">
-      <Link href="/simple" className="block px-5 py-5 border-b border-[hsl(35_24%_80%)] group md:py-6">
+      <Link href="/brief" className="block px-5 py-5 border-b border-[hsl(35_24%_80%)] group md:py-6">
         <div className="flex items-baseline gap-2">
           <span className="editorial text-2xl tracking-tight">Lex</span>
           <span className="editorial text-2xl tracking-tight italic text-[hsl(34_82%_34%)] group-hover:text-[hsl(34_24%_14%)] transition">
@@ -161,18 +162,18 @@ function SimpleSidebar() {
           </span>
         </div>
         <div className="text-[9px] uppercase tracking-[0.32em] text-[hsl(33_14%_43%)] mt-1.5 font-mono">
-          simple monitor
+          brief workspace
         </div>
       </Link>
       <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
-        <SimpleNavItem href="/simple" icon={<ListChecks className="size-4" />} label="Queue" />
-        <SimpleNavItem href="/simple?view=map" icon={<Map className="size-4" />} label="Map" />
-        <SimpleNavItem href="/simple/search" icon={<Search className="size-4" />} label="Search" />
-        <SimpleNavItem href="/simple/alerts" icon={<Bell className="size-4" />} label="Alerts" />
-        <SimpleNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Advanced" />
+        <SimpleNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" />
+        <SimpleNavItem href="/brief?view=map" icon={<Map className="size-4" />} label="Map" />
+        <SimpleNavItem href="/brief/search" icon={<Search className="size-4" />} label="Search" />
+        <SimpleNavItem href="/brief/alerts" icon={<Bell className="size-4" />} label="Alerts" />
+        <SimpleNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" />
       </nav>
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-[hsl(33_14%_43%)] leading-relaxed border-t border-[hsl(35_24%_80%)] md:block">
-        Simple mode prioritizes what needs review. Advanced detail stays one click away.
+        Brief prioritizes what needs review. Workspace switching lives in Settings.
       </div>
     </aside>
   );
@@ -202,14 +203,14 @@ function SimpleTopBar() {
   return (
     <div className="min-h-12 border-b border-[hsl(35_24%_80%)] bg-[hsl(38_36%_94%)] flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
       <div className="text-[10px] text-[hsl(33_14%_43%)] tracking-[0.24em] uppercase font-mono sm:tracking-[0.32em]">
-        Simple Portfolio Monitor
+        Brief Portfolio Monitor
       </div>
       <div className="flex items-center gap-4">
         <Link
-          href="/"
+          href="/settings"
           className="text-[11px] text-[hsl(33_14%_43%)] hover:text-[hsl(34_82%_34%)] font-mono tracking-[0.18em] uppercase transition"
         >
-          Advanced UI
+          Settings
         </Link>
         <div className="flex items-center gap-2 text-[11px] text-[hsl(33_14%_43%)] font-mono tracking-[0.18em] uppercase">
           <span className="relative flex size-1.5 rounded-full bg-[hsl(34_82%_34%)]" />
@@ -232,11 +233,11 @@ function SimpleFooter() {
           , licensed CC BY-ND 4.0.
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/settings" className="hover:text-[hsl(34_24%_14%)]">
+            Settings
+          </Link>
           <Link href="/api" className="hover:text-[hsl(34_24%_14%)]">
             API
-          </Link>
-          <Link href="/" className="hover:text-[hsl(34_24%_14%)]">
-            Advanced
           </Link>
         </div>
       </div>

@@ -137,9 +137,9 @@ export default async function SimpleDashboardPage({
   return (
     <div className="space-y-8">
       <SimplePageHeader
-        eyebrow="Simple portfolio monitor"
+        eyebrow="Brief portfolio monitor"
         title={view === "map" ? "Portfolio risk map" : "What needs review?"}
-        description="A lower-friction view of the same LexPulse data. It ranks companies by attention needed, then keeps the full analyst dashboard one click away."
+        description="A lower-friction view of the same LexPulse data. It ranks companies by attention needed, while the Analyst workspace keeps the full detail."
         action={<SimpleTabs active={view} />}
       />
 
@@ -174,7 +174,7 @@ function QueueView({
           <SimpleCardHeader
             title="Priority queue"
             subtitle="Companies with high scores, material moves, severe filings, or recent filing pressure."
-            right={<SimpleActionLink href="/">Advanced dashboard</SimpleActionLink>}
+            right={<SimpleActionLink href="/settings">Workspace settings</SimpleActionLink>}
           />
           <div className="divide-y divide-[hsl(35_24%_84%)]">
             {rows.map((row) => (
@@ -187,7 +187,7 @@ function QueueView({
           <SimpleCardHeader
             title="Sector concentration"
             subtitle="A quick map of where review pressure is clustered."
-            right={<SimpleActionLink href="/simple?view=map">Full map</SimpleActionLink>}
+            right={<SimpleActionLink href="/brief?view=map">Full map</SimpleActionLink>}
           />
           <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-1">
             {sectors.map((sector) => (
@@ -206,7 +206,7 @@ function MapView({ sectors }: { sectors: ReturnType<typeof summarizeSectors> }) 
       <SimpleCardHeader
         title="Sector map"
         subtitle="Sectors are ordered by review pressure first, then total coverage."
-        right={<SimpleActionLink href="/simple">Back to queue</SimpleActionLink>}
+        right={<SimpleActionLink href="/brief">Back to queue</SimpleActionLink>}
       />
       <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         {sectors.map((sector) => (
@@ -244,7 +244,7 @@ function SummaryCard({
 function CompanyQueueRow({ row }: { row: SimpleCompany }) {
   return (
     <Link
-      href={`/simple/companies/${row.id}`}
+      href={`/brief/companies/${row.id}`}
       className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -283,7 +283,7 @@ function SectorMiniCard({
 }) {
   return (
     <Link
-      href="/simple?view=map"
+      href="/brief?view=map"
       className="rounded-lg border border-[hsl(35_24%_82%)] bg-[hsl(38_48%_94%)] p-4 transition hover:border-[hsl(34_82%_34%)]"
     >
       <div className="flex items-start justify-between gap-3">
