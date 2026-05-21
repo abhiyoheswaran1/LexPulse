@@ -13,10 +13,25 @@ export type SavedSearch = {
   createdAt: string;
 };
 
+export type SavedAlertFilter = {
+  id: string;
+  name: string;
+  filters: {
+    impact: string;
+    sector: string;
+    type: string;
+    read: string;
+    company: string;
+    watchlistOnly: boolean;
+  };
+  createdAt: string;
+};
+
 export type WorkflowState = {
   version: 1;
   watchlist: StoredCompany[];
   savedSearches: SavedSearch[];
+  savedAlertFilters: SavedAlertFilter[];
   readAlertIds: string[];
 };
 
@@ -24,6 +39,7 @@ export const EMPTY_WORKFLOW_STATE: WorkflowState = {
   version: 1,
   watchlist: [],
   savedSearches: [],
+  savedAlertFilters: [],
   readAlertIds: [],
 };
 
@@ -40,6 +56,9 @@ export function parseWorkflowState(value: string | null): WorkflowState {
       version: 1,
       watchlist: parsed.watchlist.filter(isStoredCompany),
       savedSearches: parsed.savedSearches.filter(isSavedSearch),
+      savedAlertFilters: Array.isArray(parsed.savedAlertFilters)
+        ? parsed.savedAlertFilters.filter(isSavedAlertFilter)
+        : [],
       readAlertIds: parsed.readAlertIds.filter((id): id is string => typeof id === "string"),
     };
   } catch {
@@ -111,6 +130,34 @@ export function removeSavedSearch(state: WorkflowState, id: string): WorkflowSta
   };
 }
 
+export function addSavedAlertFilter(
+  state: WorkflowState,
+  filter: Omit<SavedAlertFilter, "name" | "createdAt"> & { name: string; createdAt?: string },
+): WorkflowState {
+  const name = normalizeVisibleQuery(filter.name);
+  if (!name) return state;
+
+  return {
+    ...state,
+    savedAlertFilters: [
+      {
+        id: filter.id,
+        name,
+        filters: filter.filters,
+        createdAt: filter.createdAt ?? new Date().toISOString(),
+      },
+      ...state.savedAlertFilters.filter((item) => normalizeSearchKey(item.name) !== normalizeSearchKey(name)),
+    ].slice(0, 12),
+  };
+}
+
+export function removeSavedAlertFilter(state: WorkflowState, id: string): WorkflowState {
+  return {
+    ...state,
+    savedAlertFilters: state.savedAlertFilters.filter((filter) => filter.id !== id),
+  };
+}
+
 export function markAlertRead(state: WorkflowState, alertId: string): WorkflowState {
   if (state.readAlertIds.includes(alertId)) return state;
   return {
@@ -153,4 +200,23 @@ function isSavedSearch(value: unknown): value is SavedSearch {
   if (!value || typeof value !== "object") return false;
   const candidate = value as SavedSearch;
   return typeof candidate.id === "string" && typeof candidate.query === "string" && typeof candidate.createdAt === "string";
+}
+
+function isSavedAlertFilter(value: unknown): value is SavedAlertFilter {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as SavedAlertFilter;
+  const filters = candidate.filters;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.createdAt === "string" &&
+    !!filters &&
+    typeof filters === "object" &&
+    typeof filters.impact === "string" &&
+    typeof filters.sector === "string" &&
+    typeof filters.type === "string" &&
+    typeof filters.read === "string" &&
+    typeof filters.company === "string" &&
+    typeof filters.watchlistOnly === "boolean"
+  );
 }

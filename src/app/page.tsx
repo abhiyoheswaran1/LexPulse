@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
 import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
+import { DashboardPersonalization } from "@/components/workflow/DashboardPersonalization";
+import { AdaptiveDataList } from "@/components/ui/AdaptiveDataList";
 import { formatRelative, cn } from "@/lib/utils";
 import {
   attentionLabel,
@@ -183,6 +185,8 @@ export default async function DashboardPage() {
           <Stat label="Active alerts" value={data.totals.alerts.toLocaleString()} />
         </dl>
       </header>
+
+      <DashboardPersonalization />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
         <div className="space-y-6">
@@ -485,9 +489,8 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
   }
 
   return (
-    <>
-      <div className="space-y-3 sm:hidden">
-        {rows.map((row) => (
+    <AdaptiveDataList
+      mobile={rows.map((row) => (
           <Link
             key={row.id}
             href={`/companies/${row.id}`}
@@ -511,10 +514,8 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
             </div>
           </Link>
         ))}
-      </div>
-
-      <div className="-mx-5 -mb-5 hidden overflow-x-auto sm:block">
-      <table className="w-full min-w-[760px] text-sm">
+      table={
+        <table className="w-full min-w-[760px] text-sm">
         <thead className="border-b border-border text-xs uppercase tracking-[0.14em] text-muted">
           <tr>
             <th className="px-5 py-2.5 text-left font-normal">Company</th>
@@ -552,8 +553,8 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
-    </>
+      }
+    />
   );
 }
 
@@ -569,9 +570,8 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
     );
   }
   return (
-    <>
-      <div className="space-y-3 sm:hidden">
-        {rows.map((row) => (
+    <AdaptiveDataList
+      mobile={rows.map((row) => (
           <Link
             key={row.id}
             href={`/companies/${row.id}`}
@@ -590,10 +590,8 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
             </div>
           </Link>
         ))}
-      </div>
-
-      <div className="-mx-5 -mb-5 hidden overflow-x-auto sm:block">
-      <table className="w-full min-w-[640px] text-sm">
+      table={
+        <table className="w-full min-w-[640px] text-sm">
         <thead className="border-b border-border bg-transparent text-xs uppercase tracking-[0.14em] text-muted">
           <tr>
             <th className="px-5 py-2.5 text-left font-normal">Company</th>
@@ -628,8 +626,8 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
           ))}
         </tbody>
       </table>
-    </div>
-    </>
+      }
+    />
   );
 }
 

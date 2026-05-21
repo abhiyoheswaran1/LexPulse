@@ -4,16 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EMPTY_WORKFLOW_STATE,
   WORKFLOW_STORAGE_KEY,
+  addSavedAlertFilter,
   addSavedSearch,
   markAlertRead,
   markAlertUnread,
   markAlertsRead,
   parseWorkflowState,
   removeSavedSearch,
+  removeSavedAlertFilter,
   removeWatchlistCompany,
   serializeWorkflowState,
   toggleWatchlistCompany,
   type SavedSearch,
+  type SavedAlertFilter,
   type StoredCompany,
   type WorkflowState,
 } from "@/lib/workflow";
@@ -58,6 +61,8 @@ export function useWorkflowState() {
           }),
         ),
       removeSearch: (id: string) => update(removeSavedSearch(state, id)),
+      saveAlertFilter: (filter: Omit<SavedAlertFilter, "createdAt">) => update(addSavedAlertFilter(state, filter)),
+      removeAlertFilter: (id: string) => update(removeSavedAlertFilter(state, id)),
       isAlertRead: (alertId: string) => state.readAlertIds.includes(alertId),
       markRead: (alertId: string) => update(markAlertRead(state, alertId)),
       markUnread: (alertId: string) => update(markAlertUnread(state, alertId)),
@@ -72,4 +77,4 @@ function readState(): WorkflowState {
   return parseWorkflowState(window.localStorage.getItem(WORKFLOW_STORAGE_KEY));
 }
 
-export type { SavedSearch, StoredCompany };
+export type { SavedAlertFilter, SavedSearch, StoredCompany };

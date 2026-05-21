@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -13,6 +14,8 @@ import {
   Search,
   Settings,
 } from "lucide-react";
+import { CommandPalette } from "./CommandPalette";
+import { useWorkflowState } from "./workflow/useWorkflowState";
 import { cn } from "@/lib/utils";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
@@ -24,14 +27,20 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 }
 
 function AdvancedChrome({ children, pathname }: { children: React.ReactNode; pathname: string }) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <AdvancedSidebar pathname={pathname} />
       <main className="flex-1 min-w-0">
-        <AdvancedTopBar />
-        <div className="mx-auto max-w-[1520px] px-5 py-6 sm:px-8 sm:py-8 2xl:px-10">{children}</div>
+        <AdvancedTopBar onOpenPalette={() => setPaletteOpen(true)} />
+        <div className="mx-auto max-w-[1520px] px-5 py-6 pb-24 sm:px-8 sm:py-8 md:pb-8 2xl:px-10">
+          {children}
+        </div>
         <AdvancedFooter />
       </main>
+      <AdvancedMobileNav pathname={pathname} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }
@@ -50,11 +59,21 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
           litigation intel
         </div>
       </Link>
-      <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
+      <nav className="hidden p-3 text-sm md:block md:space-y-0.5">
         <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" pathname={pathname} />
         <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" pathname={pathname} />
         <AdvancedNavItem href="/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
-        <AdvancedNavItem href="/alerts" icon={<Bell className="size-4" />} label="Alerts" pathname={pathname} />
+        <AdvancedNavItem
+          href="/alerts"
+          icon={
+            <span className="relative">
+              <Bell className="size-4" />
+              <UnreadDot />
+            </span>
+          }
+          label="Alerts"
+          pathname={pathname}
+        />
         <AdvancedNavItem href="/calibration" icon={<BarChart3 className="size-4" />} label="Calibration" pathname={pathname} />
         <AdvancedNavItem href="/methodology" icon={<BookOpen className="size-4" />} label="Methodology" pathname={pathname} />
         <AdvancedNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
@@ -99,13 +118,22 @@ function AdvancedNavItem({
   );
 }
 
-function AdvancedTopBar() {
+function AdvancedTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <div className="min-h-12 border-b border-border bg-panel/40 backdrop-blur flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
       <div className="text-[10px] text-muted tracking-[0.24em] uppercase font-mono sm:tracking-[0.32em]">
         Litigation Intelligence
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition hover:border-accent/60 hover:text-accent"
+        >
+          <Search className="size-3.5" />
+          <span className="hidden sm:inline">Command</span>
+          <span className="hidden rounded border border-border/70 px-1.5 py-0.5 text-[9px] sm:inline">⌘K</span>
+        </button>
         <Link href="/settings" className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition">
           Settings
         </Link>
@@ -119,6 +147,88 @@ function AdvancedTopBar() {
       </div>
     </div>
   );
+}
+
+function AdvancedMobileNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-xl border border-border bg-panel/95 p-1 shadow-2xl shadow-black/30 backdrop-blur md:hidden">
+      <MobileNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Home" pathname={pathname} />
+      <MobileNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watch" pathname={pathname} />
+      <MobileNavItem href="/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
+      <MobileNavItem
+        href="/alerts"
+        icon={
+          <span className="relative">
+            <Bell className="size-4" />
+            <UnreadDot />
+          </span>
+        }
+        label="Alerts"
+        pathname={pathname}
+      />
+      <MobileNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
+    </nav>
+  );
+}
+
+function MobileNavItem({
+  href,
+  icon,
+  label,
+  pathname,
+  light = false,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  pathname: string;
+  light?: boolean;
+}) {
+  const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] transition",
+        light
+          ? "text-[hsl(33_14%_38%)] hover:bg-[hsl(38_30%_84%)] hover:text-[hsl(34_24%_14%)]"
+          : "text-muted hover:bg-panel2 hover:text-fg",
+        active && (light ? "bg-[hsl(38_30%_84%)] text-[hsl(34_24%_14%)]" : "bg-panel2 text-fg"),
+      )}
+    >
+      <span className={cn(active && (light ? "text-[hsl(34_82%_34%)]" : "text-accent"))}>{icon}</span>
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function UnreadDot() {
+  const count = useUnreadAlertCount();
+  if (count === 0) return null;
+  return <span className="absolute -right-1 -top-1 size-2 rounded-full bg-bad ring-2 ring-panel" />;
+}
+
+function useUnreadAlertCount() {
+  const workflow = useWorkflowState();
+  const [alertIds, setAlertIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/alerts?limit=200")
+      .then((response) => response.json())
+      .then((payload: { alerts?: Array<{ id: string }> }) => {
+        if (!cancelled) setAlertIds((payload.alerts ?? []).map((alert) => alert.id));
+      })
+      .catch(() => {
+        if (!cancelled) setAlertIds([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return alertIds.filter((id) => !workflow.isAlertRead(id)).length;
 }
 
 function AdvancedFooter() {
@@ -150,15 +260,19 @@ function AdvancedFooter() {
 }
 
 function SimpleChrome({ children, pathname }: { children: React.ReactNode; pathname: string }) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-[hsl(38_36%_94%)] text-[hsl(34_24%_14%)]">
       <div className="flex min-h-screen flex-col md:flex-row">
         <SimpleSidebar pathname={pathname} />
         <main className="flex-1 min-w-0">
-          <SimpleTopBar />
-          <div className="px-5 py-6 sm:px-8 sm:py-8 max-w-[1320px] mx-auto">{children}</div>
+          <SimpleTopBar onOpenPalette={() => setPaletteOpen(true)} />
+          <div className="mx-auto max-w-[1320px] px-5 py-6 pb-24 sm:px-8 sm:py-8 md:pb-8">{children}</div>
           <SimpleFooter />
         </main>
+        <SimpleMobileNav pathname={pathname} />
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </div>
     </div>
   );
@@ -178,11 +292,21 @@ function SimpleSidebar({ pathname }: { pathname: string }) {
           brief workspace
         </div>
       </Link>
-      <nav className="flex gap-1 overflow-x-auto p-3 text-sm md:block md:space-y-0.5 md:overflow-visible">
+      <nav className="hidden p-3 text-sm md:block md:space-y-0.5">
         <SimpleNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" pathname={pathname} />
         <SimpleNavItem href="/brief?view=map" icon={<Map className="size-4" />} label="Map" pathname={pathname} />
         <SimpleNavItem href="/brief/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} />
-        <SimpleNavItem href="/brief/alerts" icon={<Bell className="size-4" />} label="Alerts" pathname={pathname} />
+        <SimpleNavItem
+          href="/brief/alerts"
+          icon={
+            <span className="relative">
+              <Bell className="size-4" />
+              <UnreadDot />
+            </span>
+          }
+          label="Alerts"
+          pathname={pathname}
+        />
         <SimpleNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} />
       </nav>
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-[hsl(33_14%_43%)] leading-relaxed border-t border-[hsl(35_24%_80%)] md:block">
@@ -226,13 +350,22 @@ function SimpleNavItem({
   );
 }
 
-function SimpleTopBar() {
+function SimpleTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <div className="min-h-12 border-b border-[hsl(35_24%_80%)] bg-[hsl(38_36%_94%)] flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
       <div className="text-[10px] text-[hsl(33_14%_43%)] tracking-[0.24em] uppercase font-mono sm:tracking-[0.32em]">
         Brief Portfolio Monitor
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="inline-flex items-center gap-2 rounded-md border border-[hsl(35_24%_80%)] px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[hsl(33_14%_43%)] transition hover:border-[hsl(34_82%_34%)] hover:text-[hsl(34_82%_34%)]"
+        >
+          <Search className="size-3.5" />
+          <span className="hidden sm:inline">Command</span>
+          <span className="hidden rounded border border-[hsl(35_24%_78%)] px-1.5 py-0.5 text-[9px] sm:inline">⌘K</span>
+        </button>
         <Link
           href="/settings"
           className="text-[11px] text-[hsl(33_14%_43%)] hover:text-[hsl(34_82%_34%)] font-mono tracking-[0.18em] uppercase transition"
@@ -245,6 +378,17 @@ function SimpleTopBar() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SimpleMobileNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-4 rounded-xl border border-[hsl(35_24%_80%)] bg-[hsl(38_36%_94%)] p-1 shadow-2xl shadow-black/15 md:hidden">
+      <MobileNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" pathname={pathname} light />
+      <MobileNavItem href="/brief/search" icon={<Search className="size-4" />} label="Search" pathname={pathname} light />
+      <MobileNavItem href="/brief/alerts" icon={<Bell className="size-4" />} label="Alerts" pathname={pathname} light />
+      <MobileNavItem href="/settings" icon={<Settings className="size-4" />} label="Settings" pathname={pathname} light />
+    </nav>
   );
 }
 

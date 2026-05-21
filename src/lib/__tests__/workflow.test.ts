@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  addSavedAlertFilter,
   addSavedSearch,
   markAlertRead,
   markAlertUnread,
@@ -13,6 +14,7 @@ const empty: WorkflowState = {
   version: 1,
   watchlist: [],
   savedSearches: [],
+  savedAlertFilters: [],
   readAlertIds: [],
 };
 
@@ -57,6 +59,51 @@ describe("workflow state helpers", () => {
 
     expect(duplicate.savedSearches).toEqual([
       { id: "search_1", query: "Apple", createdAt: "2026-05-21T00:00:00.000Z" },
+    ]);
+  });
+
+  test("adds saved alert filters with normalized name replacement", () => {
+    const first = addSavedAlertFilter(empty, {
+      id: "filter_1",
+      name: " Watchlist Review ",
+      createdAt: "2026-05-21T00:00:00.000Z",
+      filters: {
+        impact: "review",
+        sector: "all",
+        type: "all",
+        read: "unread",
+        company: "",
+        watchlistOnly: true,
+      },
+    });
+    const replaced = addSavedAlertFilter(first, {
+      id: "filter_2",
+      name: "watchlist review",
+      createdAt: "2026-05-21T00:01:00.000Z",
+      filters: {
+        impact: "monitor",
+        sector: "tech",
+        type: "case_spike",
+        read: "all",
+        company: "Apple",
+        watchlistOnly: false,
+      },
+    });
+
+    expect(replaced.savedAlertFilters).toEqual([
+      {
+        id: "filter_2",
+        name: "watchlist review",
+        createdAt: "2026-05-21T00:01:00.000Z",
+        filters: {
+          impact: "monitor",
+          sector: "tech",
+          type: "case_spike",
+          read: "all",
+          company: "Apple",
+          watchlistOnly: false,
+        },
+      },
     ]);
   });
 

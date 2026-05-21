@@ -2,14 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Panel } from "@/components/Panel";
+import { RiskBadge } from "@/components/RiskBadge";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { ScoreHistoryChart, type ScoreHistoryPoint } from "@/components/ScoreHistoryChart";
 import { CaseTimeline } from "@/components/CaseTimeline";
 import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 import { WatchlistButton } from "@/components/workflow/WatchlistButton";
+import { SourceLink } from "@/components/ui/SourceLink";
+import { MetricStrip } from "@/components/ui/MetricStrip";
 import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
-import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
+import { ChevronLeft, Gavel, Scale, ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { deriveSubScores, type RiskBreakdownV3 } from "@/lib/risk";
 import { attentionLabel, attentionLevel, attentionReason, type AttentionLevel } from "@/lib/simple-ui";
 
@@ -28,6 +31,32 @@ async function getCompany(id: string) {
       alerts: { take: 8, orderBy: { createdAt: "desc" } },
     },
   });
+}
+
+async function getSectorPeers(sectorKey: string | null, companyId: string) {
+  if (!sectorKey) return [];
+  const peers = await prisma.company.findMany({
+    where: { sectorKey, NOT: { id: companyId } },
+    take: 40,
+    include: {
+      scores: { orderBy: { computedAt: "desc" }, take: 1 },
+      _count: { select: { links: true } },
+    },
+  });
+
+  return peers
+    .map((peer) => ({
+      id: peer.id,
+      name: peer.name,
+      ticker: peer.ticker,
+      caseCount: peer._count.links,
+      score: peer.scores[0]?.score ?? 0,
+      band: peer.scores[0]?.band ?? "low",
+      recentCases: peer.scores[0]?.recentCases ?? 0,
+      delta7d: peer.scores[0]?.delta7d ?? null,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
 }
 
 function bucketByMonth(dates: (Date | null)[]): { month: string; count: number }[] {
@@ -52,6 +81,7 @@ function bucketByMonth(dates: (Date | null)[]): { month: string; count: number }
 export default async function CompanyPage({ params }: { params: { id: string } }) {
   const co = await getCompany(params.id);
   if (!co) notFound();
+  const peers = await getSectorPeers(co.sectorKey, co.id);
 
   const score = co.scores[0];
   const cases = co.links.map((l) => ({ ...l.caseRef, role: l.role }));
@@ -208,37 +238,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         </div>
       </header>
 
-      {score && (
-        <Panel
-          title="Review summary"
-          subtitle="Plain-language triage derived from score movement, recent cases, and drivers."
-        >
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              {attention && <AttentionPill level={attention} label={attentionLabel(attention)} />}
-              {reviewReason && <p className="mt-3 text-sm leading-6 text-fg/85">{reviewReason}</p>}
-              {drivers.length > 0 && (
-                <div className="mt-3 text-xs text-muted">
-                  Top driver: <span className="text-fg/80">{drivers[0].label}</span>
-                </div>
-              )}
-            </div>
-            <dl className="grid min-w-[280px] grid-cols-3 gap-4 text-right">
-              <Metric label="Score" value={score.score} />
-              <Metric label="12mo" value={(score.recentCases ?? 0).toLocaleString()} />
-              <Metric
-                label="7d"
-                value={score.delta7d == null ? "flat" : <DeltaValue value={score.delta7d} />}
-              />
-            </dl>
-          </div>
-        </Panel>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.85fr] gap-6">
-        <Panel title="Score history" subtitle="Latest persisted score snapshots for this company.">
-          <ScoreHistoryChart data={scoreHistory} />
-        </Panel>
         <Panel title="Why did this change?" subtitle="Recent score movement and primary driver at each snapshot.">
           <ul className="space-y-3">
             {changeEvents.length === 0 ? (
@@ -261,7 +261,42 @@ export default async function CompanyPage({ params }: { params: { id: string } }
             )}
           </ul>
         </Panel>
+        <Panel title="Score history" subtitle="Latest persisted score snapshots for this company.">
+          <ScoreHistoryChart data={scoreHistory} />
+        </Panel>
       </div>
+
+      {score && (
+        <Panel
+          title="Review summary"
+          subtitle="Plain-language triage derived from score movement, recent cases, drivers, and peer context."
+        >
+          <div className="space-y-5">
+            <div className="max-w-3xl">
+              {attention && <AttentionPill level={attention} label={attentionLabel(attention)} />}
+              {reviewReason && <p className="mt-3 text-sm leading-6 text-fg/85">{reviewReason}</p>}
+              {drivers.length > 0 && (
+                <div className="mt-3 text-xs text-muted">
+                  Top driver: <span className="text-fg/80">{drivers[0].label}</span>
+                </div>
+              )}
+            </div>
+            <MetricStrip
+              columns={4}
+              items={[
+                { label: "Score", value: score.score },
+                { label: "12mo", value: (score.recentCases ?? 0).toLocaleString() },
+                { label: "7d", value: score.delta7d == null ? "flat" : <DeltaValue value={score.delta7d} /> },
+                {
+                  label: "Last change",
+                  value: changeEvents[0]?.delta == null ? "flat" : <DeltaValue value={changeEvents[0].delta} />,
+                  hint: changeEvents[0]?.driver ?? "No dominant driver",
+                },
+              ]}
+            />
+          </div>
+        </Panel>
+      )}
 
       <Panel title="Data confidence" subtitle="Entity and sector matching signals used by the product.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -303,6 +338,42 @@ export default async function CompanyPage({ params }: { params: { id: string } }
           />
         </div>
       )}
+
+      <Panel
+        title="Sector peers"
+        subtitle={co.sector?.label ? `Highest-scoring peers in ${co.sector.label}.` : "No sector peer cohort is available yet."}
+      >
+        {peers.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+            Peer comparison will appear once this company has a mapped sector cohort.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {peers.map((peer) => (
+              <Link
+                key={peer.id}
+                href={`/companies/${peer.id}`}
+                className="rounded-lg border border-border/75 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-fg/95">{peer.name}</div>
+                    <div className="mt-1 text-xs text-muted">
+                      {peer.caseCount.toLocaleString()} cases, {peer.recentCases.toLocaleString()} recent
+                    </div>
+                  </div>
+                  <RiskBadge score={peer.score} band={peer.band} />
+                </div>
+                {peer.delta7d != null && peer.delta7d !== 0 && (
+                  <div className="mt-3 text-xs text-muted">
+                    7d move: <DeltaValue value={peer.delta7d} />
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Panel className="lg:col-span-2" title="Filings, last 24 months" subtitle="Monthly count of new dockets">
@@ -407,16 +478,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                       </td>
                       <td className="px-4 py-3 text-xs text-muted tabular text-right">{formatDate(c.dateFiled)}</td>
                       <td className="px-3 py-3 text-muted/60 group-hover:text-accent transition">
-                        {clUrl && (
-                          <Link
-                            href={clUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label="Open on CourtListener"
-                          >
-                            <ExternalLink className="size-3.5" />
-                          </Link>
-                        )}
+                        <SourceLink href={clUrl} label="Docket" compact />
                       </td>
                     </tr>
                   );
@@ -451,14 +513,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                     </div>
                     <div className="text-xs text-muted">{a.body}</div>
                     {sourceUrl && (
-                      <Link
-                        href={sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex items-center gap-1 text-xs text-muted transition hover:text-accent"
-                      >
-                        Source docket <ExternalLink className="size-3" />
-                      </Link>
+                      <SourceLink href={sourceUrl} label="Source docket" className="mt-2" />
                     )}
                   </div>
                 </li>
