@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CheckCircle2, LayoutDashboard, ListChecks } from "lucide-react";
 import { PlatformSettings } from "@/components/platform/PlatformSettings";
 
@@ -37,7 +36,7 @@ export default function SettingsPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         {workspaces.map((workspace) => (
-          <Link
+          <a
             key={workspace.name}
             href={workspace.href}
             className="group rounded-xl border border-border bg-panel/60 p-5 transition hover:border-accent/50 hover:bg-panel/80"
@@ -58,7 +57,7 @@ export default function SettingsPage() {
             <div className="mt-5 text-xs font-medium uppercase tracking-[0.16em] text-fg/70 group-hover:text-accent">
               Open {workspace.name.replace(" workspace", "")}
             </div>
-          </Link>
+          </a>
         ))}
       </section>
 

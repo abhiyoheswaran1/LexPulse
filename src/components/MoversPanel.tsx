@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Panel } from "./Panel";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,7 +26,7 @@ export function MoversPanel({ rows }: { rows: MoverRow[] }) {
           const Up = r.delta7d > 0;
           return (
             <li key={r.id}>
-              <Link
+              <a
                 href={`/companies/${r.id}`}
                 className="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 rounded-md hover:bg-panel2/60 transition"
               >
@@ -52,7 +51,7 @@ export function MoversPanel({ rows }: { rows: MoverRow[] }) {
                     {r.delta7d}
                   </span>
                 </div>
-              </Link>
+              </a>
             </li>
           );
         })}

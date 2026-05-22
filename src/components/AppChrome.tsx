@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -51,7 +50,7 @@ function AdvancedChrome({ children, pathname }: { children: React.ReactNode; pat
 function AdvancedSidebar({ pathname }: { pathname: string }) {
   return (
     <aside className="w-full shrink-0 border-b border-border bg-panel/40 backdrop-blur-sm md:w-56 md:border-b-0 md:border-r">
-      <Link href="/" className="block px-5 py-5 border-b border-border group md:py-6">
+      <a href="/" className="block px-5 py-5 border-b border-border group md:py-6">
         <div className="flex items-baseline gap-2">
           <span className="editorial text-2xl tracking-tight">Lex</span>
           <span className="editorial text-2xl tracking-tight italic text-accent group-hover:text-fg transition">
@@ -61,7 +60,7 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
         <div className="text-[9px] uppercase tracking-[0.32em] text-muted mt-1.5 font-mono">
           litigation intel
         </div>
-      </Link>
+      </a>
       <nav className="hidden p-3 text-sm md:block md:space-y-0.5">
         <AdvancedNavItem href="/" icon={<LayoutDashboard className="size-4" />} label="Dashboard" pathname={pathname} />
         <AdvancedNavItem href="/watchlist" icon={<Bookmark className="size-4" />} label="Watchlist" pathname={pathname} />
@@ -88,9 +87,9 @@ function AdvancedSidebar({ pathname }: { pathname: string }) {
       <div className="hidden px-5 py-4 mt-4 text-[11px] text-muted leading-relaxed border-t border-border font-display italic md:block">
         <div className="not-italic text-fg/80 font-sans font-medium mb-1.5 text-xs">v3.0, backtested</div>
         IC 0.06 at 180-day horizon vs SEC 8-K disclosures.{" "}
-        <Link href="/calibration" className="not-italic text-accent hover:underline font-sans">
+        <a href="/calibration" className="not-italic text-accent hover:underline font-sans">
           numbers
-        </Link>
+        </a>
       </div>
     </aside>
   );
@@ -110,7 +109,7 @@ function AdvancedNavItem({
   const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <Link
+    <a
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -120,7 +119,7 @@ function AdvancedNavItem({
     >
       <span className={cn("grid size-5 place-items-center text-muted", active && "text-accent")}>{icon}</span>
       <span>{label}</span>
-    </Link>
+    </a>
   );
 }
 
@@ -140,9 +139,9 @@ function AdvancedTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span className="hidden sm:inline">Command</span>
           <span className="hidden rounded border border-border/70 px-1.5 py-0.5 text-[9px] sm:inline">⌘K</span>
         </button>
-        <Link href="/settings" className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition">
+        <a href="/settings" className="text-[11px] text-muted hover:text-accent font-mono tracking-[0.18em] uppercase transition">
           Settings
-        </Link>
+        </a>
         <StatusPill />
       </div>
     </div>
@@ -186,7 +185,7 @@ function MobileNavItem({
 }) {
   const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <Link
+    <a
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -199,7 +198,7 @@ function MobileNavItem({
     >
       <span className={cn(active && (light ? "text-[hsl(34_82%_34%)]" : "text-accent"))}>{icon}</span>
       <span>{label}</span>
-    </Link>
+    </a>
   );
 }
 
@@ -237,33 +236,33 @@ function AdvancedFooter() {
       <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-4">
         <div>
           Litigation data via{" "}
-          <Link href="https://www.courtlistener.com/" className="text-fg/80 hover:text-accent">
+          <a href="https://www.courtlistener.com/" className="text-fg/80 hover:text-accent">
             CourtListener / Free Law Project
-          </Link>
+          </a>
           , licensed CC BY-ND 4.0.
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/settings" className="hover:text-fg">
+          <a href="/settings" className="hover:text-fg">
             Settings
-          </Link>
-          <Link href="/api" className="hover:text-fg">
+          </a>
+          <a href="/api" className="hover:text-fg">
             API
-          </Link>
-          <Link href="/status" className="hover:text-fg">
+          </a>
+          <a href="/status" className="hover:text-fg">
             Status
-          </Link>
-          <Link href="/coverage" className="hover:text-fg">
+          </a>
+          <a href="/coverage" className="hover:text-fg">
             Coverage
-          </Link>
-          <Link href="/support" className="hover:text-fg">
+          </a>
+          <a href="/support" className="hover:text-fg">
             Support
-          </Link>
-          <Link href="/legal" className="hover:text-fg">
+          </a>
+          <a href="/legal" className="hover:text-fg">
             Legal
-          </Link>
-          <Link href="https://github.com/abhiyoheswaran1/LexPulse" className="hover:text-fg">
+          </a>
+          <a href="https://github.com/abhiyoheswaran1/LexPulse" className="hover:text-fg">
             GitHub
-          </Link>
+          </a>
           <span className="text-muted/60">v0.3, LexPulse</span>
         </div>
       </div>
@@ -293,7 +292,7 @@ function SimpleChrome({ children, pathname }: { children: React.ReactNode; pathn
 function SimpleSidebar({ pathname }: { pathname: string }) {
   return (
     <aside className="w-full shrink-0 border-b border-[hsl(35_24%_80%)] bg-[hsl(37_32%_90%)] md:w-56 md:border-b-0 md:border-r">
-      <Link href="/brief" className="block px-5 py-5 border-b border-[hsl(35_24%_80%)] group md:py-6">
+      <a href="/brief" className="block px-5 py-5 border-b border-[hsl(35_24%_80%)] group md:py-6">
         <div className="flex items-baseline gap-2">
           <span className="editorial text-2xl tracking-tight">Lex</span>
           <span className="editorial text-2xl tracking-tight italic text-[hsl(34_82%_34%)] group-hover:text-[hsl(34_24%_14%)] transition">
@@ -303,7 +302,7 @@ function SimpleSidebar({ pathname }: { pathname: string }) {
         <div className="text-[9px] uppercase tracking-[0.32em] text-[hsl(33_14%_43%)] mt-1.5 font-mono">
           brief workspace
         </div>
-      </Link>
+      </a>
       <nav className="hidden p-3 text-sm md:block md:space-y-0.5">
         <SimpleNavItem href="/brief" icon={<ListChecks className="size-4" />} label="Queue" pathname={pathname} />
         <SimpleNavItem href="/brief?view=map" icon={<Map className="size-4" />} label="Map" pathname={pathname} />
@@ -348,7 +347,7 @@ function SimpleNavItem({
       : pathname === normalizedHref || pathname.startsWith(`${normalizedHref}/`));
 
   return (
-    <Link
+    <a
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -358,7 +357,7 @@ function SimpleNavItem({
     >
       <span className={cn("grid size-5 place-items-center text-[hsl(33_14%_43%)]", active && "text-[hsl(34_82%_34%)]")}>{icon}</span>
       <span>{label}</span>
-    </Link>
+    </a>
   );
 }
 
@@ -378,12 +377,12 @@ function SimpleTopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span className="hidden sm:inline">Command</span>
           <span className="hidden rounded border border-[hsl(35_24%_78%)] px-1.5 py-0.5 text-[9px] sm:inline">⌘K</span>
         </button>
-        <Link
+        <a
           href="/settings"
           className="text-[11px] text-[hsl(33_14%_43%)] hover:text-[hsl(34_82%_34%)] font-mono tracking-[0.18em] uppercase transition"
         >
           Settings
-        </Link>
+        </a>
         <StatusPill light />
       </div>
     </div>
@@ -407,24 +406,24 @@ function SimpleFooter() {
       <div className="max-w-[1320px] mx-auto flex flex-wrap items-center justify-between gap-4">
         <div>
           Litigation data via{" "}
-          <Link href="https://www.courtlistener.com/" className="text-[hsl(34_24%_20%)] hover:text-[hsl(34_82%_34%)]">
+          <a href="https://www.courtlistener.com/" className="text-[hsl(34_24%_20%)] hover:text-[hsl(34_82%_34%)]">
             CourtListener / Free Law Project
-          </Link>
+          </a>
           , licensed CC BY-ND 4.0.
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/settings" className="hover:text-[hsl(34_24%_14%)]">
+          <a href="/settings" className="hover:text-[hsl(34_24%_14%)]">
             Settings
-          </Link>
-          <Link href="/api" className="hover:text-[hsl(34_24%_14%)]">
+          </a>
+          <a href="/api" className="hover:text-[hsl(34_24%_14%)]">
             API
-          </Link>
-          <Link href="/status" className="hover:text-[hsl(34_24%_14%)]">
+          </a>
+          <a href="/status" className="hover:text-[hsl(34_24%_14%)]">
             Status
-          </Link>
-          <Link href="/support" className="hover:text-[hsl(34_24%_14%)]">
+          </a>
+          <a href="/support" className="hover:text-[hsl(34_24%_14%)]">
             Support
-          </Link>
+          </a>
         </div>
       </div>
     </footer>

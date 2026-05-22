@@ -27,6 +27,7 @@ type CompanyRow = Awaited<ReturnType<typeof loadCompanies>>[number];
 async function loadCompanies(now: Date) {
   const oneDayAgo = new Date(now.getTime() - ONE_DAY);
   return prisma.company.findMany({
+    where: { displayStatus: "visible" },
     select: {
       id: true,
       name: true,

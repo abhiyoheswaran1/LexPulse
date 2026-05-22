@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { CheckCircle2, Search, Settings2, Sparkles } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { useWorkflowState } from "@/components/workflow/useWorkflowState";
@@ -98,13 +97,13 @@ export function OnboardingPanel() {
               <CheckCircle2 className="size-4" />
               {hasWatchlist ? "Finish setup" : "Skip for now"}
             </button>
-            <Link
+            <a
               href="/settings"
               className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent"
             >
               <Settings2 className="size-4" />
               Account settings
-            </Link>
+            </a>
           </div>
         </div>
 

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Panel } from "@/components/Panel";
 import { ArrowUpRight, BarChart3, Database, Gavel, Scale } from "lucide-react";
 
@@ -96,13 +95,13 @@ export default function MethodologyPage() {
               present or missing.
             </p>
           </div>
-          <Link
+          <a
             href="/calibration"
             className="flex h-fit items-center justify-between gap-4 rounded-lg border border-border bg-panel2/50 p-4 text-sm transition hover:border-accent/60 hover:text-accent"
           >
             View calibration detail
             <ArrowUpRight className="size-4" />
-          </Link>
+          </a>
         </div>
       </Panel>
 

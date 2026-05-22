@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +21,7 @@ export function SourceLink({
   }
 
   return (
-    <Link
+    <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
@@ -34,6 +33,6 @@ export function SourceLink({
     >
       {label}
       <ExternalLink className="size-3" />
-    </Link>
+    </a>
   );
 }

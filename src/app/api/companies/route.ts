@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const sort = url.searchParams.get("sort") ?? "risk";
 
   const companies = await prisma.company.findMany({
-    where: ids && ids.length > 0 ? { id: { in: ids } } : undefined,
+    where: ids && ids.length > 0 ? { id: { in: ids }, displayStatus: "visible" } : { displayStatus: "visible" },
     take: limit,
     include: {
       sector: { select: { label: true } },

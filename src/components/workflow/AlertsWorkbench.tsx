@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AlertTriangle, Bell, Bookmark, ExternalLink, Save, TrendingUp, X } from "lucide-react";
 import { alertAttentionLevel, attentionLabel, type AttentionLevel } from "@/lib/simple-ui";
 import { cn, formatRelative } from "@/lib/utils";
 import { SourceLink } from "@/components/ui/SourceLink";
 import { useWorkflowState } from "./useWorkflowState";
+import { groupAlertThreads } from "@/lib/alert-workflow";
 
 export type AlertWorkbenchRow = {
   id: string;
@@ -46,7 +46,7 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
     impact: "all",
     sector: "all",
     type: "all",
-    read: "all",
+    read: "unread",
     company: "",
     watchlistOnly: false,
   });
@@ -77,6 +77,7 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
       (!filters.watchlistOnly || watched)
     );
   });
+  const threads = groupAlertThreads(visible);
   const unreadVisible = visible.filter((alert) => !workflow.isAlertRead(alert.id)).length;
 
   const setFilter = <K extends keyof AlertFilters>(key: K, value: AlertFilters[K]) => {
@@ -106,7 +107,7 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
           <div>
             <h2 className="text-sm font-semibold">Alert workbench</h2>
             <p className="mt-0.5 text-xs text-muted">
-              {visible.length.toLocaleString()} visible, {unreadVisible.toLocaleString()} unread
+              {threads.length.toLocaleString()} threads, {visible.length.toLocaleString()} alerts, {unreadVisible.toLocaleString()} unread
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -207,11 +208,14 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
         <div className="px-5 py-10 text-center text-sm text-muted">No alerts match these filters.</div>
       ) : (
         <ul className="divide-y divide-border">
-          {visible.map((alert) => {
+          {threads.map((thread) => {
+            const alert = thread.primary;
             const level = alertAttentionLevel(alert);
-            const isRead = workflow.isAlertRead(alert.id);
+            const threadAlertIds = thread.alerts.map((item) => item.id);
+            const isRead = thread.alerts.every((item) => workflow.isAlertRead(item.id));
+            const unreadInThread = thread.alerts.filter((item) => !workflow.isAlertRead(item.id)).length;
             return (
-              <li key={alert.id} className={cn("px-5 py-4 transition hover:bg-panel2/40", isRead && "opacity-60")}>
+              <li key={thread.key} className={cn("px-5 py-4 transition hover:bg-panel2/40", isRead && "opacity-60")}>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
                     <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border border-border bg-panel2/60">
@@ -221,16 +225,24 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <ImpactPill level={level} label={attentionLabel(level)} />
                         {isRead && <span className="text-xs text-muted">Read</span>}
+                        {thread.alerts.length > 1 && (
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted">
+                            {thread.alerts.length.toLocaleString()} updates
+                          </span>
+                        )}
                       </div>
                       <h3 className="mt-2 text-sm font-medium text-fg/95">{alert.title}</h3>
                       <p className="mt-1 text-sm leading-6 text-fg/80">{alert.body}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <Link href={`/companies/${alert.company.id}`} className="hover:text-accent">
+                        <a href={`/companies/${alert.company.id}`} className="hover:text-accent">
                           {alert.company.name}
-                        </Link>
+                        </a>
                         <span>{alert.company.sectorLabel ?? "Unclassified"}</span>
                         <span>{alert.type.replace("_", " ")}</span>
                         <span>{formatRelative(new Date(alert.createdAt))}</span>
+                        {thread.alerts.length > 1 && (
+                          <span>{unreadInThread.toLocaleString()} unread in thread</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -244,10 +256,10 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => (isRead ? workflow.markUnread(alert.id) : workflow.markRead(alert.id))}
+                      onClick={() => (isRead ? workflow.markManyUnread(threadAlertIds) : workflow.markManyRead(threadAlertIds))}
                       className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted transition hover:border-accent/60 hover:text-accent"
                     >
-                      {isRead ? "Mark unread" : "Mark read"}
+                      {isRead ? "Reopen thread" : "Mark thread reviewed"}
                     </button>
                   </div>
                 </div>
@@ -258,7 +270,11 @@ export function AlertsWorkbench({ alerts }: { alerts: AlertWorkbenchRow[] }) {
       )}
 
       {selectedAlert && (
-        <SourceDrawer alert={selectedAlert} onClose={() => setSelectedAlert(null)} />
+        <SourceDrawer
+          alert={selectedAlert}
+          onClose={() => setSelectedAlert(null)}
+          onReviewed={() => workflow.markRead(selectedAlert.id)}
+        />
       )}
     </section>
   );
@@ -305,7 +321,15 @@ function ImpactPill({ level, label }: { level: AttentionLevel; label: string }) 
   );
 }
 
-function SourceDrawer({ alert, onClose }: { alert: AlertWorkbenchRow; onClose: () => void }) {
+function SourceDrawer({
+  alert,
+  onClose,
+  onReviewed,
+}: {
+  alert: AlertWorkbenchRow;
+  onClose: () => void;
+  onReviewed: () => void;
+}) {
   const [assignedTo, setAssignedTo] = useState("");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
@@ -316,6 +340,7 @@ function SourceDrawer({ alert, onClose }: { alert: AlertWorkbenchRow; onClose: (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedTo, note, reviewed: true }),
     });
+    onReviewed();
     setSaved(true);
   };
 
@@ -352,12 +377,12 @@ function SourceDrawer({ alert, onClose }: { alert: AlertWorkbenchRow; onClose: (
             </p>
             <SourceLink href={alert.sourceUrl} label="Open docket" className="mt-3" />
           </div>
-          <Link
+          <a
             href={`/companies/${alert.company.id}`}
             className="inline-flex rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent"
           >
             Open company profile
-          </Link>
+          </a>
           <div className="rounded-lg border border-border bg-panel2/35 p-4">
             <div className="text-xs font-medium text-fg/90">Workflow</div>
             <label className="mt-3 block">

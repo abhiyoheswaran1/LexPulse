@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Activity, AlertCircle, CheckCircle2, Clock3, Database, RadioTower } from "lucide-react";
 import { getPlatformStatus } from "@/lib/status";
 import { formatRelative } from "@/lib/utils";
@@ -58,9 +57,9 @@ export default async function StatusPage() {
                 <h2 className="text-sm font-semibold">Coverage</h2>
                 <p className="mt-1 text-xs text-muted">How much of the universe is scored, mapped, and source-linked.</p>
               </div>
-              <Link href="/coverage" className="text-xs text-muted transition hover:text-accent">
+              <a href="/coverage" className="text-xs text-muted transition hover:text-accent">
                 Details
-              </Link>
+              </a>
             </div>
           </header>
           <div className="space-y-5 p-5">
@@ -103,13 +102,13 @@ export default async function StatusPage() {
             <h2 className="text-sm font-semibold">Production health endpoint</h2>
             <p className="mt-1 text-sm text-muted">Use this endpoint for uptime checks and release verification.</p>
           </div>
-          <Link
+          <a
             href="/api/health"
             className="inline-flex w-fit items-center gap-2 rounded-md border border-border px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-accent/60 hover:text-accent"
           >
             Open /api/health
             <Activity className="size-3.5" />
-          </Link>
+          </a>
         </div>
       </section>
     </div>

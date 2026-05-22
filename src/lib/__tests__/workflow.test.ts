@@ -4,6 +4,7 @@ import {
   addSavedSearch,
   markAlertRead,
   markAlertUnread,
+  markAlertsUnread,
   mergeWorkflowStates,
   parseWorkflowState,
   removeWatchlistCompany,
@@ -112,6 +113,15 @@ describe("workflow state helpers", () => {
     const read = markAlertRead(markAlertRead(empty, "alert_1"), "alert_1");
     expect(read.readAlertIds).toEqual(["alert_1"]);
     expect(markAlertUnread(read, "alert_1").readAlertIds).toEqual([]);
+  });
+
+  test("reopens many reviewed alerts at once", () => {
+    const read: WorkflowState = {
+      ...empty,
+      readAlertIds: ["alert_1", "alert_2", "alert_3"],
+    };
+
+    expect(markAlertsUnread(read, ["alert_1", "alert_3"]).readAlertIds).toEqual(["alert_2"]);
   });
 
   test("merges local and remote workflow state for account sync", () => {

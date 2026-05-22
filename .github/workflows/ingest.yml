@@ -58,6 +58,8 @@ jobs:
           npm run import:company-master
           npm run match:entities -- --limit 20000
           npm run promote:company-master
+          npm run classify:entities
+          npm run merge:companies
           npm run seed:sectors
           npm run expand:sectors
           npm run seed:judges

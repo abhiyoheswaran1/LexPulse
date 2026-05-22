@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BookmarkX, RefreshCcw } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -57,7 +56,7 @@ export default function WatchlistPage() {
         <div className="text-xs uppercase tracking-[0.18em] text-muted">Workflow</div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Watchlist</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-          Companies you want to review regularly. This list is stored in this browser until account workspaces ship.
+          Companies you want to review regularly. This list syncs to the active account workspace and still works locally if the network is unavailable.
         </p>
       </header>
 
@@ -67,12 +66,12 @@ export default function WatchlistPage() {
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
             Add companies from Search or a company profile. The watchlist will hydrate each saved company with the latest score and filing pressure.
           </p>
-          <Link
+          <a
             href="/search"
             className="mt-5 inline-flex rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent"
           >
             Find companies
-          </Link>
+          </a>
         </section>
       ) : (
         <section className="rounded-xl border border-border bg-panel/60">
@@ -115,9 +114,9 @@ export default function WatchlistPage() {
                   return (
                     <tr key={row.id} className="transition hover:bg-panel2/40">
                       <td className="px-5 py-4">
-                        <Link href={`/companies/${row.id}`} className="font-medium hover:text-accent">
+                        <a href={`/companies/${row.id}`} className="font-medium hover:text-accent">
                           {row.name}
-                        </Link>
+                        </a>
                         <div className="mt-1 text-xs text-muted">
                           {row.ticker ? `${row.ticker}, ` : ""}
                           {row.sectorLabel ?? "Unclassified"}

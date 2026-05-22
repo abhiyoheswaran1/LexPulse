@@ -58,6 +58,8 @@ jobs:
           npm run fetch:courtlistener-parties -- --limit 25
           npm run match:entities -- --limit 5000
           npm run promote:company-master
+          npm run classify:entities
+          npm run merge:companies
 
       - name: Fetch free external event sources
         run: npm run fetch:external-events -- --source all --limit 100

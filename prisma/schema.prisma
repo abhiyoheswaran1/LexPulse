@@ -45,10 +45,15 @@ model Company {
   // foreign entities, or unmatched names.
   cik              String?  @unique
   companyMasterId  String?
+  displayStatus    String   @default("visible")
+  qualityReason    String?
+  canonicalCompanyId String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   companyMaster  CompanyMaster?   @relation(fields: [companyMasterId], references: [id], onDelete: SetNull)
+  canonicalCompany Company?        @relation("CompanyCanonical", fields: [canonicalCompanyId], references: [id], onDelete: SetNull)
+  mergedCompanies Company[]        @relation("CompanyCanonical")
   links          CompanyCaseLink[]
   scores         RiskScore[]
   alerts         Alert[]
@@ -61,6 +66,8 @@ model Company {
   @@index([name])
   @@index([sectorKey])
   @@index([companyMasterId])
+  @@index([displayStatus])
+  @@index([canonicalCompanyId])
   @@map("companies")
 }
 
@@ -155,6 +162,8 @@ model ObservedParty {
   rawName   String
   normKey   String
   role      String
+  displayStatus String @default("visible")
+  qualityReason String?
   metadata  Json?
   firstSeenAt DateTime @default(now())
   createdAt DateTime @default(now())
@@ -167,6 +176,7 @@ model ObservedParty {
   @@unique([caseId, rawName, role, source])
   @@index([normKey])
   @@index([companyId])
+  @@index([displayStatus])
   @@map("observed_parties")
 }
 
@@ -465,8 +475,37 @@ model Account {
   notes             WorkflowNote[]
   apiKeys           ApiKey[]
   auditLogs         AuditLog[]
+  workspaceMemberships WorkspaceMember[]
 
   @@map("accounts")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("starter")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members WorkspaceMember[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  accountId   String
+  role        String   @default("owner")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, accountId])
+  @@index([accountId])
+  @@map("workspace_members")
 }
 
 model AccountPreference {

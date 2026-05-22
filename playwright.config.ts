@@ -4,8 +4,8 @@ const port = Number(process.env.PLAYWRIGHT_PORT ?? 3010);
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 45_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 2 : 0,

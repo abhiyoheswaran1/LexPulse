@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -62,12 +61,12 @@ export default async function SimpleCompanyPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-8">
-      <Link
+      <a
         href="/brief"
         className="inline-flex items-center gap-1 text-xs text-[hsl(33_14%_43%)] hover:text-[hsl(34_24%_14%)]"
       >
         <ChevronLeft className="size-3.5" /> back to Brief queue
-      </Link>
+      </a>
 
       <SimplePageHeader
         eyebrow="Brief company profile"
@@ -186,14 +185,14 @@ export default async function SimpleCompanyPage({ params }: { params: { id: stri
                 return (
                   <li key={caseRef.id}>
                     {href ? (
-                      <Link
+                      <a
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
                       >
                         {row}
-                      </Link>
+                      </a>
                     ) : (
                       <div className="px-5 py-4">{row}</div>
                     )}

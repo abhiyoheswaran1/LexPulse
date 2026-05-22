@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 export default function AttributionPage() {
   return (
@@ -15,12 +14,12 @@ export default function AttributionPage() {
         <p className="mt-2 text-sm leading-6 text-muted">
           Federal docket metadata is sourced from CourtListener and the Free Law Project, with public docket links shown on case and alert surfaces when available.
         </p>
-        <Link
+        <a
           href="https://www.courtlistener.com/"
           className="mt-4 inline-flex rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent"
         >
           Open CourtListener
-        </Link>
+        </a>
       </section>
     </div>
   );

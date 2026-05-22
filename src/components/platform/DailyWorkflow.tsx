@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Bell, CheckCircle2, ClipboardList, MessageSquarePlus, RefreshCw } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -79,7 +78,7 @@ export function DailyWorkflow() {
   };
 
   if (loading && !payload) {
-    return <div className="rounded-xl border border-border bg-panel/60 p-6 text-sm text-muted">Loading daily workflow...</div>;
+    return <DailyWorkflowLoading />;
   }
 
   if (!payload) {
@@ -103,12 +102,12 @@ export function DailyWorkflow() {
           <p className="mt-2 text-sm leading-6 text-muted">
             The daily workflow becomes portfolio-first once the watchlist has companies. Search or use onboarding on the dashboard to add the first set.
           </p>
-          <Link
+          <a
             href="/search"
             className="mt-4 inline-flex rounded-md border border-accent/50 px-3 py-2 text-sm text-accent transition hover:bg-accent/10"
           >
             Find companies
-          </Link>
+          </a>
         </section>
       )}
 
@@ -186,6 +185,50 @@ export function DailyWorkflow() {
   );
 }
 
+function DailyWorkflowLoading() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        {["Watched", "Review now", "Changed", "Unread alerts"].map((label) => (
+          <div key={label} className="rounded-xl border border-border bg-panel/60 p-4">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</div>
+            <div className="mt-3 h-7 w-16 animate-pulse rounded bg-panel2" />
+          </div>
+        ))}
+      </section>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <WorkflowPanel title="Review now" subtitle="Loading watched companies with high score or material movement.">
+          <LoadingRows />
+        </WorkflowPanel>
+        <WorkflowPanel title="Companies that changed" subtitle="Loading score movement since the previous snapshot.">
+          <LoadingRows />
+        </WorkflowPanel>
+      </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <WorkflowPanel title="Portfolio alerts" subtitle="Loading unread and recently reviewed alerts.">
+          <LoadingRows />
+        </WorkflowPanel>
+        <WorkflowPanel title="Review notes" subtitle="Loading account notes for the daily desk workflow.">
+          <LoadingRows />
+        </WorkflowPanel>
+      </div>
+    </div>
+  );
+}
+
+function LoadingRows() {
+  return (
+    <div className="space-y-2">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="rounded-lg border border-border bg-panel2/35 p-3">
+          <div className="h-4 w-2/3 animate-pulse rounded bg-panel" />
+          <div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-panel" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-panel/60 p-4">
@@ -216,7 +259,7 @@ function CompanyList({ rows, empty }: { rows: CompanyRow[]; empty: string }) {
     <ul className="space-y-2">
       {rows.map((company) => (
         <li key={company.id}>
-          <Link href={`/companies/${company.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-panel2/35 p-3 transition hover:border-accent/50">
+          <a href={`/companies/${company.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-panel2/35 p-3 transition hover:border-accent/50">
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium">{company.name}</span>
               <span className="mt-1 block text-xs text-muted">
@@ -224,7 +267,7 @@ function CompanyList({ rows, empty }: { rows: CompanyRow[]; empty: string }) {
               </span>
             </span>
             <RiskBadge score={company.score} band={company.band} />
-          </Link>
+          </a>
         </li>
       ))}
     </ul>
@@ -242,9 +285,9 @@ function AlertList({ rows, onToggle, isRead }: { rows: AlertRow[]; onToggle: (id
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Bell className="size-3.5 text-muted" />
-                <Link href={`/companies/${alert.company.id}`} className="text-xs text-muted hover:text-accent">
+                <a href={`/companies/${alert.company.id}`} className="text-xs text-muted hover:text-accent">
                   {alert.company.name}
-                </Link>
+                </a>
               </div>
               <div className="mt-1 text-sm font-medium">{alert.title}</div>
               <div className="mt-1 text-xs text-muted">{formatRelative(new Date(alert.createdAt))}</div>

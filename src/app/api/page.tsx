@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Panel } from "@/components/Panel";
 import { Code2, ExternalLink } from "lucide-react";
 
@@ -20,13 +19,13 @@ export default function ApiDocsPage() {
             from Settings; strict per-key enforcement is the next billing gate.
           </p>
         </div>
-        <Link
+        <a
           href="/methodology"
           className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent border border-border rounded-md px-3 py-1.5"
         >
           Methodology
           <ExternalLink className="size-3" />
-        </Link>
+        </a>
       </header>
 
       <Panel title="Overview" subtitle="Conventions for every endpoint below">
@@ -210,6 +209,8 @@ export default function ApiDocsPage() {
   "totals": {
     "trackedEntities": 7001,
     "secListedUniverse": 7981,
+    "sp1500Universe": 0,
+    "russell3000Universe": 0,
     "litigationLinkedCompanies": 6998,
     "riskScoredCompanies": 6969,
     "unresolvedObservedParties": 4905,

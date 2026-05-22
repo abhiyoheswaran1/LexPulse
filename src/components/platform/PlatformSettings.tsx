@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, CreditCard, KeyRound, ShieldCheck, Slack, Trash2 } from "lucide-react";
+import { Building2, Copy, CreditCard, KeyRound, ShieldCheck, Slack, Trash2, UserRound } from "lucide-react";
 import { useWorkflowState } from "@/components/workflow/useWorkflowState";
+import type { WorkspacePayload } from "@/lib/account";
 
 type ApiKeyRow = {
   id: string;
@@ -15,6 +16,10 @@ type ApiKeyRow = {
 
 export function PlatformSettings() {
   const workflow = useWorkflowState();
+  const [account, setAccount] = useState<WorkspacePayload["account"] | null>(null);
+  const [identity, setIdentity] = useState({ email: "", name: "", workspaceName: "" });
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [identityMessage, setIdentityMessage] = useState<string | null>(null);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [keyName, setKeyName] = useState("Production API");
   const [newSecret, setNewSecret] = useState<string | null>(null);
@@ -22,7 +27,19 @@ export function PlatformSettings() {
 
   useEffect(() => {
     void refreshKeys();
+    void refreshAccount();
   }, []);
+
+  const refreshAccount = async () => {
+    const response = await fetch("/api/workspace", { cache: "no-store" });
+    const payload = (await response.json()) as WorkspacePayload;
+    setAccount(payload.account);
+    setIdentity({
+      email: payload.account.email ?? "",
+      name: payload.account.name ?? "",
+      workspaceName: payload.account.workspace?.name ?? "Personal workspace",
+    });
+  };
 
   const refreshKeys = async () => {
     setLoadingKeys(true);
@@ -46,6 +63,33 @@ export function PlatformSettings() {
     await refreshKeys();
   };
 
+  const saveIdentity = async () => {
+    setSavingIdentity(true);
+    setIdentityMessage(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(identity),
+      });
+      const payload = (await response.json()) as WorkspacePayload | { error?: string };
+      if (!response.ok) {
+        setIdentityMessage("error" in payload && payload.error ? payload.error : "Unable to save account identity.");
+        return;
+      }
+      const workspacePayload = payload as WorkspacePayload;
+      setAccount(workspacePayload.account);
+      setIdentity({
+        email: workspacePayload.account.email ?? "",
+        name: workspacePayload.account.name ?? "",
+        workspaceName: workspacePayload.account.workspace?.name ?? "Personal workspace",
+      });
+      setIdentityMessage("Saved");
+    } finally {
+      setSavingIdentity(false);
+    }
+  };
+
   const revokeKey = async (id: string) => {
     await fetch(`/api/platform/keys/${id}`, { method: "DELETE" });
     await refreshKeys();
@@ -53,6 +97,70 @@ export function PlatformSettings() {
 
   return (
     <section className="space-y-6">
+      <div className="rounded-xl border border-border bg-panel/60">
+        <header className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold">Account identity</h2>
+          <p className="mt-1 text-xs text-muted">
+            Name the account and workspace that own saved searches, watchlists, alert review state, notes, and API keys.
+          </p>
+        </header>
+        <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[1fr_320px]">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <TextField
+              label="Name"
+              value={identity.name}
+              onChange={(value) => setIdentity((current) => ({ ...current, name: value }))}
+              placeholder="Your name"
+            />
+            <TextField
+              label="Email"
+              value={identity.email}
+              onChange={(value) => setIdentity((current) => ({ ...current, email: value }))}
+              placeholder="you@example.com"
+            />
+            <TextField
+              label="Workspace"
+              value={identity.workspaceName}
+              onChange={(value) => setIdentity((current) => ({ ...current, workspaceName: value }))}
+              placeholder="Portfolio desk"
+            />
+          </div>
+          <aside className="rounded-lg border border-border bg-panel2/35 p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border text-accent">
+                <UserRound className="size-4" />
+              </span>
+              <div className="min-w-0 text-sm">
+                <div className="font-medium">{account?.name || "Unnamed account"}</div>
+                <div className="mt-1 truncate text-xs text-muted">{account?.email || "No email set"}</div>
+                <div className="mt-3 flex items-center gap-2 text-xs text-muted">
+                  <Building2 className="size-3.5" />
+                  <span className="truncate">{account?.workspace?.name ?? "Personal workspace"}</span>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
+                    {account?.workspace?.role ?? "owner"}
+                  </span>
+                </div>
+                <div className="mt-3 font-mono text-[11px] text-muted/80">Account {account?.id.slice(0, 10) ?? "loading"}</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted">
+            {identityMessage ?? "This keeps the product ready for full auth without losing today's workspace data."}
+          </div>
+          <button
+            type="button"
+            onClick={saveIdentity}
+            disabled={savingIdentity}
+            className="inline-flex w-fit items-center gap-2 rounded-md border border-accent/50 bg-accent px-3 py-2 text-sm font-medium text-bg transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <ShieldCheck className="size-4" />
+            {savingIdentity ? "Saving" : "Save identity"}
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-border bg-panel/60">
         <header className="border-b border-border px-5 py-4">
           <h2 className="text-sm font-semibold">Account persistence</h2>
@@ -167,6 +275,30 @@ export function PlatformSettings() {
         </section>
       </div>
     </section>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="mt-1 w-full rounded-md border border-border bg-panel2/60 px-3 py-2 text-sm outline-none placeholder:text-muted/60 focus:border-accent/60"
+      />
+    </label>
   );
 }
 

@@ -22,6 +22,12 @@ export type WorkspacePayload = {
     plan: string;
     createdAt: string;
     lastSeenAt: string | null;
+    workspace: {
+      id: string;
+      name: string;
+      slug: string;
+      role: string;
+    } | null;
   };
   workflow: WorkflowState;
   preference: WorkspacePreference;
@@ -72,6 +78,7 @@ export async function getOrCreateAccount() {
     await prisma.accountPreference.create({ data: { accountId: account.id, ...DEFAULT_PREFERENCE } });
   }
 
+  await ensureDefaultWorkspace(account.id);
   await prisma.account.update({ where: { id: account.id }, data: { lastSeenAt: new Date() } });
   return account;
 }
@@ -86,11 +93,17 @@ export async function loadWorkspacePayload(accountId: string): Promise<Workspace
     include: {
       preference: true,
       watchlist: {
+        where: { company: { displayStatus: "visible" } },
         include: { company: { select: { id: true, name: true, ticker: true } } },
         orderBy: { savedAt: "desc" },
       },
       savedSearches: { orderBy: { createdAt: "desc" } },
       savedAlertFilters: { orderBy: { createdAt: "desc" } },
+      workspaceMemberships: {
+        include: { workspace: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
       alertStates: {
         where: { readAt: { not: null } },
         select: { alertId: true },
@@ -107,11 +120,14 @@ export async function loadWorkspacePayload(accountId: string): Promise<Workspace
         plan: "starter",
         createdAt: new Date().toISOString(),
         lastSeenAt: null,
+        workspace: null,
       },
       workflow: EMPTY_WORKFLOW_STATE,
       preference: DEFAULT_PREFERENCE,
     };
   }
+
+  const membership = account.workspaceMemberships[0] ?? null;
 
   return {
     account: {
@@ -121,6 +137,14 @@ export async function loadWorkspacePayload(accountId: string): Promise<Workspace
       plan: account.plan,
       createdAt: account.createdAt.toISOString(),
       lastSeenAt: account.lastSeenAt?.toISOString() ?? null,
+      workspace: membership
+        ? {
+            id: membership.workspace.id,
+            name: membership.workspace.name,
+            slug: membership.workspace.slug,
+            role: membership.role,
+          }
+        : null,
     },
     workflow: {
       version: 1,
@@ -147,16 +171,68 @@ export async function loadWorkspacePayload(accountId: string): Promise<Workspace
   };
 }
 
+export type AccountIdentityInput = {
+  email?: unknown;
+  name?: unknown;
+  workspaceName?: unknown;
+};
+
+export function normalizeAccountIdentity(input: AccountIdentityInput) {
+  return {
+    email: normalizeNullableText(input.email, { lowercase: true, maxLength: 254 }),
+    name: normalizeNullableText(input.name, { maxLength: 120 }),
+    workspaceName: normalizeNullableText(input.workspaceName, { maxLength: 120 }),
+  };
+}
+
+export async function updateAccountIdentity(accountId: string, input: AccountIdentityInput) {
+  const identity = normalizeAccountIdentity(input);
+  const membership = await ensureDefaultWorkspace(accountId);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.account.update({
+      where: { id: accountId },
+      data: {
+        email: identity.email,
+        name: identity.name,
+      },
+    });
+
+    if (identity.workspaceName) {
+      await tx.workspace.update({
+        where: { id: membership.workspaceId },
+        data: { name: identity.workspaceName },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        accountId,
+        action: "account.identity_updated",
+        entityType: "account",
+        entityId: accountId,
+        metadata: {
+          hasEmail: Boolean(identity.email),
+          hasName: Boolean(identity.name),
+          hasWorkspaceName: Boolean(identity.workspaceName),
+        },
+      },
+    });
+  });
+
+  return loadWorkspacePayload(accountId);
+}
+
 export async function persistWorkspace(accountId: string, workflow: WorkflowState, preference?: Partial<WorkspacePreference>) {
   const normalized = parseWorkflowState(JSON.stringify(workflow));
   const companyIds = [...new Set(normalized.watchlist.map((company) => company.id))];
   const validCompanies = companyIds.length
-    ? await prisma.company.findMany({ where: { id: { in: companyIds } }, select: { id: true } })
+    ? await prisma.company.findMany({ where: { id: { in: companyIds }, displayStatus: "visible" }, select: { id: true } })
     : [];
   const validCompanyIds = new Set(validCompanies.map((company) => company.id));
   const alertIds = [...new Set(normalized.readAlertIds)];
   const validAlerts = alertIds.length
-    ? await prisma.alert.findMany({ where: { id: { in: alertIds } }, select: { id: true } })
+    ? await prisma.alert.findMany({ where: { id: { in: alertIds }, company: { displayStatus: "visible" } }, select: { id: true } })
     : [];
   const readIds = validAlerts.map((alert) => alert.id);
   const now = new Date();
@@ -307,7 +383,7 @@ function normalizeAlertFilters(value: Prisma.JsonValue) {
       impact: "all",
       sector: "all",
       type: "all",
-      read: "all",
+      read: "unread",
       company: "",
       watchlistOnly: false,
     };
@@ -317,8 +393,45 @@ function normalizeAlertFilters(value: Prisma.JsonValue) {
     impact: typeof filters.impact === "string" ? filters.impact : "all",
     sector: typeof filters.sector === "string" ? filters.sector : "all",
     type: typeof filters.type === "string" ? filters.type : "all",
-    read: typeof filters.read === "string" ? filters.read : "all",
+    read: typeof filters.read === "string" ? filters.read : "unread",
     company: typeof filters.company === "string" ? filters.company : "",
     watchlistOnly: filters.watchlistOnly === true,
   };
+}
+
+async function ensureDefaultWorkspace(accountId: string) {
+  const existing = await prisma.workspaceMember.findFirst({
+    where: { accountId },
+    orderBy: { createdAt: "asc" },
+    select: { workspaceId: true, role: true },
+  });
+  if (existing) return existing;
+
+  const slug = `workspace-${accountId.slice(-8)}-${randomBytes(3).toString("hex")}`;
+  const workspace = await prisma.workspace.create({
+    data: {
+      name: "Personal workspace",
+      slug,
+      members: {
+        create: {
+          accountId,
+          role: "owner",
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  return { workspaceId: workspace.id, role: "owner" };
+}
+
+function normalizeNullableText(
+  value: unknown,
+  options: { lowercase?: boolean; maxLength: number },
+): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return null;
+  const bounded = normalized.slice(0, options.maxLength);
+  return options.lowercase ? bounded.toLowerCase() : bounded;
 }

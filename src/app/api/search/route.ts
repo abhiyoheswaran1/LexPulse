@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const [exact, fuzzy] = await Promise.all([
     key
       ? prisma.company.findMany({
-          where: { normKey: { startsWith: key } },
+          where: { normKey: { startsWith: key }, displayStatus: "visible" },
           take: 10,
           include: {
             scores: { orderBy: { computedAt: "desc" }, take: 1 },
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
         })
       : Promise.resolve([]),
     prisma.company.findMany({
-      where: { name: { contains: q, mode: "insensitive" } },
+      where: { name: { contains: q, mode: "insensitive" }, displayStatus: "visible" },
       take: 20,
       include: {
         scores: { orderBy: { computedAt: "desc" }, take: 1 },

@@ -78,6 +78,7 @@ function topRisk() {
       latest."delta7d"
     FROM latest
     JOIN companies c ON c.id = latest."companyId"
+    WHERE c."displayStatus" = 'visible'
     ORDER BY latest.score DESC, latest."recentCases" DESC
     LIMIT 30
   `;
@@ -103,6 +104,7 @@ function recentPressure() {
       latest."delta7d"
     FROM latest
     JOIN companies c ON c.id = latest."companyId"
+    WHERE c."displayStatus" = 'visible'
     ORDER BY latest."recentCases" DESC, latest.score DESC
     LIMIT 30
   `;
@@ -130,6 +132,7 @@ function latestMovers() {
     JOIN companies c ON c.id = latest."companyId"
     WHERE latest."delta7d" IS NOT NULL
       AND latest."delta7d" != 0
+      AND c."displayStatus" = 'visible'
     ORDER BY ABS(latest."delta7d") DESC
     LIMIT 50
   `;

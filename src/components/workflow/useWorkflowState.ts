@@ -10,6 +10,7 @@ import {
   markAlertRead,
   markAlertUnread,
   markAlertsRead,
+  markAlertsUnread,
   mergeWorkflowStates,
   parseWorkflowState,
   removeSavedSearch,
@@ -52,8 +53,10 @@ export function useWorkflowState() {
       .then((payload: { workflow?: WorkflowState; preference?: WorkspacePreference }) => {
         if (cancelled) return;
         const remote = parseWorkflowState(JSON.stringify(payload.workflow ?? EMPTY_WORKFLOW_STATE));
-        const merged = mergeWorkflowStates(local, remote);
-        const nextPreference = normalizePreference({ ...(payload.preference ?? DEFAULT_PREFERENCE), ...localPreference });
+        const latestLocal = readState();
+        const latestPreference = readPreference();
+        const merged = mergeWorkflowStates(latestLocal, remote);
+        const nextPreference = normalizePreference({ ...(payload.preference ?? DEFAULT_PREFERENCE), ...latestPreference });
         setState(merged);
         setPreferenceState(nextPreference);
         writeLocal(merged);
@@ -115,6 +118,7 @@ export function useWorkflowState() {
       markRead: (alertId: string) => update(markAlertRead(state, alertId)),
       markUnread: (alertId: string) => update(markAlertUnread(state, alertId)),
       markManyRead: (alertIds: string[]) => update(markAlertsRead(state, alertIds)),
+      markManyUnread: (alertIds: string[]) => update(markAlertsUnread(state, alertIds)),
       setPreference: updatePreference,
     }),
     [preference, ready, state, update, updatePreference],

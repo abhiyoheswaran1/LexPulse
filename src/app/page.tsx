@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
 import { MoversPanel, type MoverRow } from "@/components/MoversPanel";
-import { DashboardPersonalization } from "@/components/workflow/DashboardPersonalization";
-import { OnboardingPanel } from "@/components/platform/OnboardingPanel";
+import { DashboardPersonalizationIsland } from "@/components/workflow/DashboardPersonalizationIsland";
+import { OnboardingPanelIsland } from "@/components/platform/OnboardingPanelIsland";
 import { AdaptiveDataList } from "@/components/ui/AdaptiveDataList";
 import { getDashboardCounts } from "@/lib/dashboard-counts";
 import { isDisplayableEntityName } from "@/lib/entity-display";
@@ -65,6 +64,11 @@ async function getData() {
         FROM risk_scores
         WHERE "scoreVersion" = 'v3'
         ORDER BY "companyId", "computedAt" DESC
+      ),
+      case_counts AS (
+        SELECT "companyId", COUNT(*) AS cases
+        FROM company_case_link
+        GROUP BY "companyId"
       )
       SELECT
         c.id,
@@ -72,7 +76,7 @@ async function getData() {
         c.ticker,
         c."sectorKey",
         s.label AS "sectorLabel",
-        COALESCE((SELECT COUNT(*) FROM company_case_link WHERE "companyId" = c.id), 0) AS cases,
+        COALESCE(cc.cases, 0) AS cases,
         l.score,
         l.band,
         l."recentCases",
@@ -82,6 +86,8 @@ async function getData() {
       FROM latest l
       JOIN companies c ON c.id = l."companyId"
       LEFT JOIN sectors s ON s.key = c."sectorKey"
+      LEFT JOIN case_counts cc ON cc."companyId" = c.id
+      WHERE c."displayStatus" = 'visible'
     `,
     prisma.alert.findMany({
       take: 30,
@@ -173,13 +179,13 @@ export default async function DashboardPage() {
               and material movement.
             </p>
           </div>
-          <Link
+          <a
             href="/api"
             className="inline-flex w-fit items-center gap-2 rounded-md border border-border px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-accent/50 hover:text-accent"
           >
             API reference
             <ArrowUpRight className="size-3.5" />
-          </Link>
+          </a>
         </div>
 
         <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-5 sm:grid-cols-3 xl:max-w-5xl xl:grid-cols-6">
@@ -200,14 +206,15 @@ export default async function DashboardPage() {
               {data.totals.latestCaseFiledAt ? data.totals.latestCaseFiledAt.toISOString().slice(0, 10) : "unknown"}.
             </p>
           </div>
-          <Link href="/coverage" className="w-fit text-accent transition hover:text-accent2">
+          <a href="/coverage" className="w-fit text-accent transition hover:text-accent2">
             View data coverage
-          </Link>
+          </a>
         </div>
       </header>
 
-      <DashboardPersonalization />
-      <OnboardingPanel />
+      <UniverseSegments counts={data.totals} />
+      <DashboardPersonalizationIsland />
+      <OnboardingPanelIsland />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
         <div className="space-y-6">
@@ -246,6 +253,53 @@ export default async function DashboardPage() {
         <RiskTable rows={data.trending} showRecent />
       </Panel>
     </div>
+  );
+}
+
+function UniverseSegments({ counts }: { counts: Awaited<ReturnType<typeof getDashboardCounts>> }) {
+  const segments = [
+    {
+      label: "SEC-listed",
+      value: counts.secListedUniverse,
+      detail: "Canonical public-company universe",
+      href: "/coverage",
+    },
+    {
+      label: "S&P 1500",
+      value: counts.sp1500Universe,
+      detail: counts.sp1500Universe > 0 ? "Imported constituent lens" : "CSV import ready",
+      href: "/coverage",
+    },
+    {
+      label: "Russell 3000",
+      value: counts.russell3000Universe,
+      detail: counts.russell3000Universe > 0 ? "Imported constituent lens" : "CSV import ready",
+      href: "/coverage",
+    },
+    {
+      label: "Watchlist",
+      value: "Personal",
+      detail: "Account workspace lens",
+      href: "/watchlist",
+    },
+  ];
+
+  return (
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Universe segments">
+      {segments.map((segment) => (
+        <a
+          key={segment.label}
+          href={segment.href}
+          className="rounded-lg border border-border bg-panel/45 p-4 transition hover:border-accent/50 hover:bg-panel/70"
+        >
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted">{segment.label}</div>
+          <div className="mt-2 font-mono text-xl font-semibold tabular text-fg">
+            {typeof segment.value === "number" ? segment.value.toLocaleString() : segment.value}
+          </div>
+          <div className="mt-1 text-xs leading-5 text-muted">{segment.detail}</div>
+        </a>
+      ))}
+    </section>
   );
 }
 
@@ -341,9 +395,9 @@ function NextReviews({ rows }: { rows: AttentionRow[] }) {
     <section className="min-w-0 rounded-lg border border-border/80 bg-panel2/35">
       <header className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2.5">
         <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Next reviews</h3>
-        <Link href="#review-queue" className="text-xs text-muted transition hover:text-accent">
+        <a href="#review-queue" className="text-xs text-muted transition hover:text-accent">
           Queue
-        </Link>
+        </a>
       </header>
       {rows.length === 0 ? (
         <div className="px-3 py-4 text-sm text-muted">No review candidates right now.</div>
@@ -351,7 +405,7 @@ function NextReviews({ rows }: { rows: AttentionRow[] }) {
         <ul className="divide-y divide-border/60">
           {rows.map((row, index) => (
             <li key={row.id}>
-              <Link
+              <a
                 href={`/companies/${row.id}`}
                 className="group grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-start gap-3 px-3 py-3 transition hover:bg-panel/60"
               >
@@ -363,7 +417,7 @@ function NextReviews({ rows }: { rows: AttentionRow[] }) {
                   <span className="mt-1 block truncate text-xs text-muted">{row.reason}</span>
                 </span>
                 <RiskBadge score={row.score} band={row.band} />
-              </Link>
+              </a>
             </li>
           ))}
         </ul>
@@ -387,7 +441,7 @@ function FilingPressure({ rows }: { rows: AttentionRow[] }) {
         <ul className="divide-y divide-border/60">
           {rows.map((row) => (
             <li key={row.id}>
-              <Link href={`/companies/${row.id}`} className="block px-3 py-3 transition hover:bg-panel/60">
+              <a href={`/companies/${row.id}`} className="block px-3 py-3 transition hover:bg-panel/60">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-fg/90">{row.name}</div>
@@ -403,7 +457,7 @@ function FilingPressure({ rows }: { rows: AttentionRow[] }) {
                     style={{ width: `${Math.max(6, (row.recentCases / maxRecent) * 100)}%` }}
                   />
                 </div>
-              </Link>
+              </a>
             </li>
           ))}
         </ul>
@@ -460,9 +514,9 @@ function RecentAlerts({
     <Panel
       title="Recent alerts"
       right={
-        <Link href="/alerts" className="text-xs text-muted hover:text-fg">
+        <a href="/alerts" className="text-xs text-muted hover:text-fg">
           View all
-        </Link>
+        </a>
       }
     >
       <ul className="space-y-3">
@@ -476,7 +530,7 @@ function RecentAlerts({
                 : "text-muted";
           return (
             <li key={alert.id}>
-              <Link href={`/companies/${alert.company.id}`} className="block rounded-md px-1 py-1 transition hover:bg-panel2/40">
+              <a href={`/companies/${alert.company.id}`} className="block rounded-md px-1 py-1 transition hover:bg-panel2/40">
                 <div className="flex items-start gap-2.5">
                   <Bell className={`mt-1 size-3.5 shrink-0 ${sev}`} />
                   <div className="min-w-0 flex-1">
@@ -486,7 +540,7 @@ function RecentAlerts({
                     <div className="truncate text-sm transition hover:text-accent">{alert.title}</div>
                   </div>
                 </div>
-              </Link>
+              </a>
             </li>
           );
         })}
@@ -512,7 +566,7 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
   return (
     <AdaptiveDataList
       mobile={rows.map((row) => (
-          <Link
+          <a
             key={row.id}
             href={`/companies/${row.id}`}
             className="block rounded-lg border border-border/70 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
@@ -533,7 +587,7 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
                 <div className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-muted">Attention</div>
               </div>
             </div>
-          </Link>
+          </a>
         ))}
       table={
         <table className="w-full min-w-[760px] text-sm">
@@ -551,10 +605,10 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
           {rows.map((row) => (
             <tr key={row.id} className="group transition hover:bg-panel2/40">
               <td className="px-5 py-3 align-top">
-                <Link href={`/companies/${row.id}`} className="block hover:text-accent">
+                <a href={`/companies/${row.id}`} className="block hover:text-accent">
                   <span className="font-medium text-fg/95">{row.name}</span>
                   {row.ticker && <span className="ml-2 text-xs text-muted tabular">{row.ticker}</span>}
-                </Link>
+                </a>
                 <div className="mt-1 max-w-xl text-xs leading-5 text-muted">{row.reason}</div>
               </td>
               <td className="px-4 py-3 align-top">
@@ -566,9 +620,9 @@ function ReviewQueue({ rows }: { rows: AttentionRow[] }) {
                 <RiskBadge score={row.score} band={row.band} />
               </td>
               <td className="px-3 py-3 align-top text-muted/70 transition group-hover:text-fg/80">
-                <Link href={`/companies/${row.id}`} className="inline-block" aria-label={`Open ${row.name}`}>
+                <a href={`/companies/${row.id}`} className="inline-block" aria-label={`Open ${row.name}`}>
                   <ArrowUpRight className="size-4" />
-                </Link>
+                </a>
               </td>
             </tr>
           ))}
@@ -593,7 +647,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
   return (
     <AdaptiveDataList
       mobile={rows.map((row) => (
-          <Link
+          <a
             key={row.id}
             href={`/companies/${row.id}`}
             className="block rounded-lg border border-border/70 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
@@ -609,7 +663,7 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
               <MiniCount label="Cases" value={row.caseCount} />
               {showRecent ? <MiniCount label="12mo" value={row.recentCases} /> : <MiniCount label="Score" value={row.score} />}
             </div>
-          </Link>
+          </a>
         ))}
       table={
         <table className="w-full min-w-[640px] text-sm">
@@ -626,10 +680,10 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
           {rows.map((row) => (
             <tr key={row.id} className={cn("group transition hover:bg-panel2/40")}>
               <td className="px-5 py-3">
-                <Link href={`/companies/${row.id}`} className="block hover:text-accent">
+                <a href={`/companies/${row.id}`} className="block hover:text-accent">
                   <span className="text-fg/95">{row.name}</span>
                   {row.ticker && <span className="ml-2 text-xs text-muted tabular">{row.ticker}</span>}
-                </Link>
+                </a>
               </td>
               <td className="px-4 py-3 text-right tabular text-fg/70">{row.caseCount.toLocaleString()}</td>
               {showRecent && (
@@ -639,9 +693,9 @@ function RiskTable({ rows, showRecent = false }: { rows: RankedRow[]; showRecent
                 <RiskBadge score={row.score} band={row.band} />
               </td>
               <td className="px-3 py-3 text-muted/70 transition group-hover:text-fg/80">
-                <Link href={`/companies/${row.id}`} className="inline-block" aria-label={`Open ${row.name}`}>
+                <a href={`/companies/${row.id}`} className="inline-block" aria-label={`Open ${row.name}`}>
                   <ArrowUpRight className="size-4" />
-                </Link>
+                </a>
               </td>
             </tr>
           ))}

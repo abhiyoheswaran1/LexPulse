@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AlertTriangle, Building2, CheckCircle2, Database, GitBranch, RadioTower } from "lucide-react";
 import { getCoverageReport } from "@/lib/coverage-data";
 
@@ -18,12 +17,12 @@ export default async function CoveragePage() {
             Canonical company universe, entity-match confidence, source freshness, and extraction coverage for the LexPulse data pipeline.
           </p>
         </div>
-        <Link
+        <a
           href="/status"
           className="inline-flex w-fit items-center gap-2 rounded-md border border-border px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-accent/50 hover:text-accent"
         >
           Platform status
-        </Link>
+        </a>
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">
@@ -52,6 +51,41 @@ export default async function CoveragePage() {
           <MetricRow label="Low confidence" value={report.confidence.low} max={Math.max(report.confidence.high + report.confidence.medium + report.confidence.low, 1)} />
         </Panel>
       </section>
+
+      <Panel title="Source health" subtitle="Last successful run per source and whether any job is stale or failing.">
+        {report.sourceHealth.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+            No source jobs have reported health yet.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {report.sourceHealth.map((run) => (
+              <div key={`${run.source}-${run.jobType}`} className="rounded-lg border border-border bg-panel2/35 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{run.source}</div>
+                    <div className="mt-1 truncate text-xs text-muted">{run.jobType}</div>
+                  </div>
+                  <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${healthClass(run.health)}`}>
+                    {run.health}
+                  </span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <dt className="uppercase tracking-[0.12em] text-muted">Last success</dt>
+                    <dd className="mt-1 text-fg/85">{run.lastSuccessfulAt ? formatDate(run.lastSuccessfulAt) : "Never"}</dd>
+                  </div>
+                  <div>
+                    <dt className="uppercase tracking-[0.12em] text-muted">Failed rows</dt>
+                    <dd className="mt-1 tabular text-fg/85">{run.rowsFailed.toLocaleString()}</dd>
+                  </div>
+                </dl>
+                {run.error && <p className="mt-3 line-clamp-2 text-xs leading-5 text-danger">{run.error}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <Panel title="Recent ingest runs" subtitle="Latest source jobs and enrichment passes.">
         <div className="overflow-x-auto">
@@ -161,4 +195,11 @@ function MetricRow({ label, value, max }: { label: string; value: number; max: n
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function healthClass(health: "healthy" | "running" | "stale" | "failed") {
+  if (health === "healthy") return "border-ok/40 bg-ok/10 text-ok";
+  if (health === "running") return "border-accent/40 bg-accent/10 text-accent";
+  if (health === "stale") return "border-warn/40 bg-warn/10 text-warn";
+  return "border-danger/40 bg-danger/10 text-danger";
 }

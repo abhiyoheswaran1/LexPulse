@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Panel } from "@/components/Panel";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -8,7 +7,7 @@ import { ScoreHistoryChart, type ScoreHistoryPoint } from "@/components/ScoreHis
 import { CaseTimeline } from "@/components/CaseTimeline";
 import { DriversPanel, type Driver } from "@/components/DriversPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
-import { WatchlistButton } from "@/components/workflow/WatchlistButton";
+import { WatchlistButtonIsland } from "@/components/workflow/WatchlistButtonIsland";
 import { SourceLink } from "@/components/ui/SourceLink";
 import { MetricStrip } from "@/components/ui/MetricStrip";
 import { formatDate, formatRelative, cn, courtListenerUrl } from "@/lib/utils";
@@ -18,25 +17,114 @@ import { attentionLabel, attentionLevel, attentionReason, type AttentionLevel } 
 
 export const dynamic = "force-dynamic";
 
+type CaseLinkRow = {
+  role: string;
+  id: string;
+  sourceId: string | null;
+  caseName: string;
+  court: string | null;
+  docketNumber: string | null;
+  dateFiled: Date | null;
+  dateTerminated: Date | null;
+  natureOfSuit: string | null;
+  cause: string | null;
+  judgeId: string | null;
+  createdAt: Date;
+};
+
 async function getCompany(id: string) {
-  return prisma.company.findUnique({
+  const company = await prisma.company.findUnique({
     where: { id },
     include: {
       sector: { select: { label: true } },
-      links: {
-        include: { caseRef: { include: { judge: true } } },
-        orderBy: { caseRef: { dateFiled: "desc" } },
-      },
-      scores: { orderBy: { computedAt: "desc" }, take: 24 },
-      alerts: { take: 8, orderBy: { createdAt: "desc" } },
+      canonicalCompany: { select: { id: true } },
+      _count: { select: { links: true } },
     },
+  });
+
+  if (!company) return null;
+
+  const [companyMaster, links, scores, alerts, externalEvents, peers, outcomeRows] = await Promise.all([
+    company.companyMasterId
+      ? prisma.companyMaster.findUnique({
+          where: { id: company.companyMasterId },
+          include: {
+            aliases: { orderBy: { confidence: "desc" }, take: 8 },
+            matches: { orderBy: { matchedAt: "desc" }, take: 20 },
+          },
+        })
+      : Promise.resolve(null),
+    prisma.$queryRaw<CaseLinkRow[]>`
+      SELECT
+        l.role,
+        c.id,
+        c."sourceId",
+        c."caseName",
+        c.court,
+        c."docketNumber",
+        c."dateFiled",
+        c."dateTerminated",
+        c."natureOfSuit",
+        c.cause,
+        c."judgeId",
+        c."createdAt"
+      FROM company_case_link l
+      JOIN cases c ON c.id = l."caseId"
+      WHERE l."companyId" = ${id}
+      ORDER BY c."dateFiled" DESC NULLS LAST
+      LIMIT 25
+    `,
+    prisma.riskScore.findMany({ where: { companyId: id }, orderBy: { computedAt: "desc" }, take: 24 }),
+    prisma.alert.findMany({ where: { companyId: id }, take: 8, orderBy: { createdAt: "desc" } }),
+    prisma.externalEvent.findMany({
+      where: { companyId: id },
+      take: 8,
+      orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
+    }),
+    getSectorPeers(company.sectorKey, company.id),
+    getCaseOutcomes(company.id),
+  ]);
+
+  return {
+    ...company,
+    companyMaster,
+    links: links.map((row) => ({
+      role: row.role,
+      caseRef: {
+        id: row.id,
+        sourceId: row.sourceId,
+        caseName: row.caseName,
+        court: row.court,
+        docketNumber: row.docketNumber,
+        dateFiled: row.dateFiled,
+        dateTerminated: row.dateTerminated,
+        natureOfSuit: row.natureOfSuit,
+        cause: row.cause,
+        judgeId: row.judgeId,
+        createdAt: row.createdAt,
+      },
+    })),
+    scores,
+    alerts,
+    externalEvents,
+    peers,
+    outcomeRows,
+  };
+}
+
+async function getCaseOutcomes(companyId: string) {
+  return prisma.caseOutcome.findMany({
+    where: { caseRef: { links: { some: { companyId } } } },
+    orderBy: [{ outcomeDate: "desc" }, { createdAt: "desc" }],
+    take: 8,
+    include: { caseRef: { select: { caseName: true, sourceId: true } } },
   });
 }
 
 async function getSectorPeers(sectorKey: string | null, companyId: string) {
   if (!sectorKey) return [];
   const peers = await prisma.company.findMany({
-    where: { sectorKey, NOT: { id: companyId } },
+    where: { sectorKey, displayStatus: "visible", NOT: { id: companyId } },
     take: 40,
     include: {
       scores: { orderBy: { computedAt: "desc" }, take: 1 },
@@ -81,10 +169,14 @@ function bucketByMonth(dates: (Date | null)[]): { month: string; count: number }
 export default async function CompanyPage({ params }: { params: { id: string } }) {
   const co = await getCompany(params.id);
   if (!co) notFound();
-  const peers = await getSectorPeers(co.sectorKey, co.id);
+  if (co.displayStatus === "merged" && co.canonicalCompanyId) redirect(`/companies/${co.canonicalCompanyId}`);
+  if (co.displayStatus === "quarantined") notFound();
+  const peers = co.peers;
+  const outcomeRows = co.outcomeRows;
 
   const score = co.scores[0];
   const cases = co.links.map((l) => ({ ...l.caseRef, role: l.role }));
+  const totalCaseCount = co._count.links;
   const casesById = new Map(cases.map((caseRef) => [caseRef.id, caseRef]));
   const timeline = bucketByMonth(cases.map((c) => c.dateFiled));
   const drivers = extractDrivers(score?.drivers);
@@ -146,6 +238,26 @@ export default async function CompanyPage({ params }: { params: { id: string } }
   const categories = Array.from(byNature, ([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
+  const caseOutcomes = outcomeRows.map((outcome) => ({
+    ...outcome,
+    caseName: outcome.caseRef.caseName,
+    sourceUrl: courtListenerUrl(outcome.caseRef.sourceId ?? null, outcome.caseRef.caseName),
+  }));
+  const outcomesByType = Array.from(
+    caseOutcomes.reduce((map, outcome) => {
+      const label = outcome.outcomeType.replace(/_/g, " ");
+      map.set(label, (map.get(label) ?? 0) + 1);
+      return map;
+    }, new Map<string, number>()),
+    ([name, count]) => ({ name, count }),
+  ).sort((a, b) => b.count - a.count);
+  const matchConfidenceCounts = Array.from(
+    (co.companyMaster?.matches ?? []).reduce((map, match) => {
+      map.set(match.confidence, (map.get(match.confidence) ?? 0) + 1);
+      return map;
+    }, new Map<string, number>()),
+    ([name, count]) => ({ name, count }),
+  );
   const scoreHistory: ScoreHistoryPoint[] = [...co.scores]
     .reverse()
     .map((item) => ({
@@ -169,9 +281,9 @@ export default async function CompanyPage({ params }: { params: { id: string } }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <Link href="/" className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg">
+      <a href="/" className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg">
         <ChevronLeft className="size-3.5" /> back
-      </Link>
+      </a>
 
       {/* Hero: single flat surface containing identity + score gauge + factor
           stack. Avoids the nested-card visual that the old layout had. */}
@@ -193,14 +305,14 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                   {co.sector.label}
                 </span>
               )}
-              <span>{cases.length.toLocaleString()} cases on record</span>
+              <span>{totalCaseCount.toLocaleString()} cases on record</span>
               {score && <span>Computed {formatRelative(score.computedAt)}</span>}
-              <WatchlistButton id={co.id} name={co.name} ticker={co.ticker} compact />
+              <WatchlistButtonIsland id={co.id} name={co.name} ticker={co.ticker} compact />
             </div>
 
             {score && (
               <dl className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4">
-                <Metric label="Total cases" value={cases.length.toLocaleString()} />
+                <Metric label="Total cases" value={totalCaseCount.toLocaleString()} />
                 <Metric label="Last 12 months" value={(score.recentCases ?? 0).toLocaleString()} />
                 <Metric
                   label="As defendant"
@@ -237,6 +349,60 @@ export default async function CompanyPage({ params }: { params: { id: string } }
           )}
         </div>
       </header>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+        <Panel title="Case timeline" subtitle="Monthly filing pressure, shown before score detail so the profile starts with evidence.">
+          <CaseTimeline data={timeline} />
+        </Panel>
+        <Panel title="Identity" subtitle="Public-company identity and entity-resolution confidence.">
+          <div className="space-y-4">
+            <MetricStrip
+              columns={2}
+              items={[
+                { label: "Ticker", value: co.ticker ?? co.companyMaster?.ticker ?? "Unlinked" },
+                { label: "CIK", value: co.cik ?? co.companyMaster?.cik ?? "Unlinked" },
+                { label: "Master", value: co.companyMaster ? "Linked" : "Missing" },
+                { label: "Aliases", value: (co.companyMaster?.aliases.length ?? 0).toLocaleString() },
+              ]}
+            />
+            {co.companyMaster && (
+              <div className="rounded-lg border border-border bg-panel2/35 p-4">
+                <div className="text-sm font-medium">{co.companyMaster.name}</div>
+                <div className="mt-1 text-xs leading-5 text-muted">
+                  Source: {co.companyMaster.source}
+                  {co.companyMaster.universe.length > 0 && `, ${co.companyMaster.universe.map(formatUniverseTag).join(", ")}`}
+                </div>
+              </div>
+            )}
+            {co.companyMaster?.aliases.length ? (
+              <div className="flex flex-wrap gap-2">
+                {co.companyMaster.aliases.map((alias) => (
+                  <span key={alias.id} className="rounded-full border border-border px-2.5 py-1 text-xs text-muted">
+                    {alias.alias}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">
+                No aliases have been accepted for this company yet.
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              {["high", "medium", "low"].map((confidence) => {
+                const count = matchConfidenceCounts.find((item) => item.name === confidence)?.count ?? 0;
+                return (
+                  <ConfidenceItem
+                    key={confidence}
+                    label={`${confidence} match`}
+                    value={count.toLocaleString()}
+                    hint="Observed-party links"
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </Panel>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.85fr] gap-6">
         <Panel title="Why did this change?" subtitle="Recent score movement and primary driver at each snapshot.">
@@ -350,7 +516,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {peers.map((peer) => (
-              <Link
+              <a
                 key={peer.id}
                 href={`/companies/${peer.id}`}
                 className="rounded-lg border border-border/75 bg-panel2/35 p-3 transition hover:border-fg/20 hover:bg-panel2/60"
@@ -369,15 +535,55 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                     7d move: <DeltaValue value={peer.delta7d} />
                   </div>
                 )}
-              </Link>
+              </a>
             ))}
           </div>
         )}
       </Panel>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Panel className="lg:col-span-2" title="Filings, last 24 months" subtitle="Monthly count of new dockets">
-          <CaseTimeline data={timeline} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Outcome and materiality" subtitle="Extracted case outcomes and free-source enforcement events.">
+          <div className="space-y-5">
+            <MetricStrip
+              columns={3}
+              items={[
+                { label: "Outcomes", value: caseOutcomes.length.toLocaleString() },
+                { label: "Event sources", value: co.externalEvents.length.toLocaleString() },
+                { label: "Latest", value: caseOutcomes[0]?.outcomeType.replace(/_/g, " ") ?? "None" },
+              ]}
+            />
+            {outcomesByType.length > 0 && (
+              <div className="space-y-2">
+                {outcomesByType.slice(0, 4).map((outcome) => (
+                  <div key={outcome.name} className="flex items-center justify-between gap-3 rounded-md border border-border bg-panel2/35 px-3 py-2 text-sm">
+                    <span className="capitalize text-fg/85">{outcome.name}</span>
+                    <span className="tabular text-muted">{outcome.count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {caseOutcomes.slice(0, 3).map((outcome) => (
+              <div key={outcome.id} className="rounded-lg border border-border bg-panel2/35 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium capitalize">{outcome.outcomeType.replace(/_/g, " ")}</div>
+                    <div className="mt-1 truncate text-xs text-muted">{outcome.caseName}</div>
+                  </div>
+                  <span className="text-xs text-muted">{Math.round(outcome.confidence * 100)}%</span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{outcome.evidence}</p>
+                <SourceLink href={outcome.sourceUrl} label="Source docket" className="mt-3" />
+              </div>
+            ))}
+            {caseOutcomes.length === 0 && co.externalEvents.length === 0 && (
+              <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+                No outcomes or external enforcement events have been extracted yet.
+              </div>
+            )}
+            {co.externalEvents.slice(0, 3).map((event) => (
+              <SourceLink key={event.id} href={event.url} label={`${event.source}: ${event.title}`} />
+            ))}
+          </div>
         </Panel>
         <Panel title="Categories" subtitle="By nature of suit">
           {categories.length === 0 ? (
@@ -409,7 +615,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
 
       <Panel
         title="Cases"
-        subtitle={`${cases.length.toLocaleString()} dockets, most recent first. Click any linked row to view on CourtListener.`}
+        subtitle={`${totalCaseCount.toLocaleString()} dockets, most recent first. Click any linked row to view on CourtListener.`}
       >
         {cases.length === 0 ? (
           <div className="text-sm text-muted">No cases.</div>
@@ -427,7 +633,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {cases.slice(0, 100).map((c) => {
+                {cases.slice(0, 25).map((c) => {
                   const clUrl = courtListenerUrl(c.sourceId ?? null, c.caseName);
                   // Render the row as an anchor when we have a source id;
                   // wrap in <tr> for layout via display:contents-equivalent.
@@ -442,7 +648,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                     >
                       <td className="px-4 py-3">
                         {clUrl ? (
-                          <Link
+                          <a
                             href={clUrl}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -452,7 +658,7 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                               {c.caseName}
                             </div>
                             <div className="text-xs text-muted tabular mt-0.5">{c.docketNumber}</div>
-                          </Link>
+                          </a>
                         ) : (
                           <>
                             <div className="font-medium text-fg/90 truncate max-w-[420px]">{c.caseName}</div>
@@ -485,9 +691,9 @@ export default async function CompanyPage({ params }: { params: { id: string } }
                 })}
               </tbody>
             </table>
-            {cases.length > 100 && (
+            {totalCaseCount > 25 && (
               <div className="text-center text-xs text-muted py-2 border-t border-border">
-                showing first 100 of {cases.length.toLocaleString()}
+                showing first 25 of {totalCaseCount.toLocaleString()}
               </div>
             )}
           </div>
@@ -662,6 +868,13 @@ function FactorList({ score }: { score: ScoreRow }) {
       ))}
     </ul>
   );
+}
+
+function formatUniverseTag(tag: string) {
+  if (tag === "sec_listed") return "SEC listed";
+  if (tag === "sp1500_import") return "S&P 1500";
+  if (tag === "russell3000_import") return "Russell 3000";
+  return tag.replace(/_/g, " ");
 }
 
 function extractDrivers(drivers: unknown): Driver[] {

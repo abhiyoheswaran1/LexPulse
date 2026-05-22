@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 export default function SupportPage() {
   return (
@@ -17,12 +16,12 @@ export default function SupportPage() {
           include the company, docket link, and the expected correction.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/status" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
+          <a href="/status" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
             Platform status
-          </Link>
-          <Link href="/attribution" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
+          </a>
+          <a href="/attribution" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
             Data attribution
-          </Link>
+          </a>
         </div>
       </section>
     </div>

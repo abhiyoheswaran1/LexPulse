@@ -3,6 +3,17 @@ import { summarizeCoverage, type CoverageInput, type CoverageSummary } from "@/l
 
 export type CoverageReport = CoverageSummary & {
   generatedAt: string;
+  sourceHealth: Array<{
+    source: string;
+    jobType: string;
+    status: string;
+    health: "healthy" | "running" | "stale" | "failed";
+    startedAt: string;
+    finishedAt: string | null;
+    lastSuccessfulAt: string | null;
+    rowsFailed: number;
+    error: string | null;
+  }>;
   sources: Array<{
     source: string;
     jobType: string;
@@ -83,6 +94,54 @@ export async function getCoverageReport(): Promise<CoverageReport> {
       error: true,
     },
   });
+  const latestRuns = await prisma.$queryRaw<
+    Array<{
+      source: string;
+      jobType: string;
+      status: string;
+      startedAt: Date;
+      finishedAt: Date | null;
+      lastSuccessfulAt: Date | null;
+      rowsFailed: number;
+      error: string | null;
+    }>
+  >`
+    WITH latest_runs AS (
+      SELECT DISTINCT ON (source, "jobType")
+        source,
+        "jobType",
+        status,
+        "startedAt",
+        "finishedAt",
+        "rowsFailed",
+        error
+      FROM data_ingest_runs
+      ORDER BY source, "jobType", "startedAt" DESC
+    ),
+    successful_runs AS (
+      SELECT
+        source,
+        "jobType",
+        MAX("finishedAt") AS "lastSuccessfulAt"
+      FROM data_ingest_runs
+      WHERE status = 'success'
+      GROUP BY source, "jobType"
+    )
+    SELECT
+      latest_runs.source,
+      latest_runs."jobType",
+      latest_runs.status,
+      latest_runs."startedAt",
+      latest_runs."finishedAt",
+      successful_runs."lastSuccessfulAt",
+      latest_runs."rowsFailed",
+      latest_runs.error
+    FROM latest_runs
+    LEFT JOIN successful_runs
+      ON successful_runs.source = latest_runs.source
+     AND successful_runs."jobType" = latest_runs."jobType"
+    ORDER BY latest_runs.source ASC, latest_runs."jobType" ASC
+  `;
 
   const input: CoverageInput = {
     companyMasters: Number(summary.companyMasters),
@@ -104,6 +163,29 @@ export async function getCoverageReport(): Promise<CoverageReport> {
   return {
     ...summarizeCoverage(input),
     generatedAt: generatedAt.toISOString(),
+    sourceHealth: latestRuns.map((run) => {
+      const freshnessAt = run.finishedAt ?? run.startedAt;
+      const isStale = freshnessAt < staleCutoff;
+      const health =
+        run.status === "running"
+          ? "running"
+          : run.status !== "success"
+            ? "failed"
+            : isStale
+              ? "stale"
+              : "healthy";
+      return {
+        source: run.source,
+        jobType: run.jobType,
+        status: run.status,
+        health,
+        startedAt: run.startedAt.toISOString(),
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        lastSuccessfulAt: run.lastSuccessfulAt?.toISOString() ?? null,
+        rowsFailed: run.rowsFailed,
+        error: run.error,
+      };
+    }),
     sources: runs.map((run) => ({
       source: run.source,
       jobType: run.jobType,

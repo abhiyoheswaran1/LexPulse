@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Bookmark, Clock3, Loader2, Sparkles, TrendingUp } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { EntityRow } from "@/components/ui/EntityRow";
@@ -99,7 +98,7 @@ export function DashboardPersonalization() {
 
   if (!workflow.ready) {
     return (
-      <Panel title="My portfolio" subtitle="Loading browser workspace.">
+      <Panel title="My portfolio" subtitle="Loading account workspace.">
         <div className="flex items-center gap-2 text-sm text-muted">
           <Loader2 className="size-4 animate-spin" /> Reading saved workspace.
         </div>
@@ -119,12 +118,12 @@ export function DashboardPersonalization() {
             Once companies are saved, this page will show new changes, watched review items, and portfolio-specific movement before the global market view.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Link href="/search" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
+            <a href="/search" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
               Find companies
-            </Link>
-            <Link href="/watchlist" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
+            </a>
+            <a href="/watchlist" className="rounded-md border border-border px-3 py-2 text-sm text-muted transition hover:border-accent/60 hover:text-accent">
               Open watchlist
-            </Link>
+            </a>
           </div>
         </div>
       </Panel>
@@ -141,7 +140,7 @@ export function DashboardPersonalization() {
         <MetricStrip
           columns={4}
           items={[
-            { label: "Watched", value: companies.length.toLocaleString(), hint: "Browser workspace" },
+            { label: "Watched", value: companies.length.toLocaleString(), hint: "Account workspace" },
             { label: "Review now", value: groups.reviewNow.length.toLocaleString(), hint: "Needs attention" },
             { label: "Changed", value: groups.changed.length.toLocaleString(), hint: "7-day score move" },
             {

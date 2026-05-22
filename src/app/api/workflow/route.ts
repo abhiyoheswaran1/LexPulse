@@ -9,13 +9,15 @@ export async function GET() {
 
   const [alerts, companies, notes] = await Promise.all([
     prisma.alert.findMany({
-      where: watchedIds.length ? { companyId: { in: watchedIds } } : undefined,
+      where: watchedIds.length
+        ? { companyId: { in: watchedIds }, company: { displayStatus: "visible" } }
+        : { company: { displayStatus: "visible" } },
       orderBy: { createdAt: "desc" },
       take: 30,
       include: { company: { select: { id: true, name: true, sector: { select: { label: true } } } } },
     }),
     prisma.company.findMany({
-      where: watchedIds.length ? { id: { in: watchedIds } } : undefined,
+      where: watchedIds.length ? { id: { in: watchedIds }, displayStatus: "visible" } : { displayStatus: "visible" },
       take: watchedIds.length ? undefined : 8,
       include: {
         scores: { orderBy: { computedAt: "desc" }, take: 2 },

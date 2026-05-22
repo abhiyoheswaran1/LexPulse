@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { AttentionLevel } from "@/lib/simple-ui";
 
@@ -117,7 +116,7 @@ function TabLink({
   children: React.ReactNode;
 }) {
   return (
-    <Link
+    <a
       href={href}
       className={cn(
         "rounded-md px-3 py-1.5 transition",
@@ -127,7 +126,7 @@ function TabLink({
       )}
     >
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -139,11 +138,11 @@ export function SimpleActionLink({
   children: React.ReactNode;
 }) {
   return (
-    <Link
+    <a
       href={href}
       className="inline-flex items-center justify-center rounded-md border border-[hsl(35_24%_76%)] bg-[hsl(42_44%_97%)] px-3 py-2 text-sm font-medium text-[hsl(34_24%_18%)] transition hover:border-[hsl(34_82%_34%)] hover:text-[hsl(34_82%_34%)]"
     >
       {children}
-    </Link>
+    </a>
   );
 }

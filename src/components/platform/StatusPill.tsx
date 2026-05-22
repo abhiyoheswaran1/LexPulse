@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 import { formatRelative } from "@/lib/utils";
@@ -33,7 +32,7 @@ export function StatusPill({ light = false }: { light?: boolean }) {
   const detail = health?.latestScoreAt ? formatRelative(new Date(health.latestScoreAt)) : "status";
 
   return (
-    <Link
+    <a
       href="/status"
       className={
         light
@@ -48,6 +47,6 @@ export function StatusPill({ light = false }: { light?: boolean }) {
       </span>
       <span>{label}</span>
       <Activity className="size-3" />
-    </Link>
+    </a>
   );
 }

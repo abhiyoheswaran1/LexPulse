@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import {
   attentionLabel,
@@ -76,6 +75,7 @@ async function getSimpleRows(): Promise<SimpleCompany[]> {
     FROM latest l
     JOIN companies c ON c.id = l."companyId"
     LEFT JOIN sectors s ON s.key = c."sectorKey"
+    WHERE c."displayStatus" = 'visible'
   `;
 
   return rows.map((row) => {
@@ -243,7 +243,7 @@ function SummaryCard({
 
 function CompanyQueueRow({ row }: { row: SimpleCompany }) {
   return (
-    <Link
+    <a
       href={`/brief/companies/${row.id}`}
       className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
     >
@@ -272,7 +272,7 @@ function CompanyQueueRow({ row }: { row: SimpleCompany }) {
           <div className="mt-1 text-xs uppercase tracking-[0.16em] text-[hsl(33_14%_43%)]">{row.band}</div>
         </div>
       </div>
-    </Link>
+    </a>
   );
 }
 
@@ -282,7 +282,7 @@ function SectorMiniCard({
   sector: ReturnType<typeof summarizeSectors>[number];
 }) {
   return (
-    <Link
+    <a
       href="/brief?view=map"
       className="rounded-lg border border-[hsl(35_24%_82%)] bg-[hsl(38_48%_94%)] p-4 transition hover:border-[hsl(34_82%_34%)]"
     >
@@ -298,7 +298,7 @@ function SectorMiniCard({
         <MiniCount label="Watch" value={sector.monitor} />
         <MiniCount label="Quiet" value={sector.quiet} />
       </div>
-    </Link>
+    </a>
   );
 }
 

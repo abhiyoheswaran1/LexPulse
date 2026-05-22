@@ -11,6 +11,7 @@ type AlertRefs = {
 
 export default async function AlertsPage() {
   const alerts = await prisma.alert.findMany({
+    where: { company: { displayStatus: "visible" } },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { attentionLabel, attentionLevel, attentionReason } from "@/lib/simple-ui";
@@ -83,7 +82,7 @@ export default function SimpleSearchPage() {
               const level = attentionLevel(input);
               return (
                 <li key={r.id}>
-                  <Link
+                  <a
                     href={`/brief/companies/${r.id}`}
                     className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
                   >
@@ -105,7 +104,7 @@ export default function SimpleSearchPage() {
                         <div className="text-xs uppercase tracking-[0.16em] text-[hsl(33_14%_43%)]">{r.band}</div>
                       </div>
                     </div>
-                  </Link>
+                  </a>
                 </li>
               );
             })}

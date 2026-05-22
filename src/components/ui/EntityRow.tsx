@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +17,7 @@ export function EntityRow({
   className?: string;
 }) {
   return (
-    <Link
+    <a
       href={href}
       className={cn(
         "group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border border-border/70 bg-panel2/30 p-3 transition hover:border-fg/20 hover:bg-panel2/55",
@@ -34,6 +33,6 @@ export function EntityRow({
         {right}
         <ArrowUpRight className="size-3.5 text-muted/70 transition group-hover:text-accent" />
       </span>
-    </Link>
+    </a>
   );
 }

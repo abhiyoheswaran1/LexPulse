@@ -100,14 +100,14 @@ export async function getPlatformStatus(): Promise<PlatformStatus> {
     }>
   >`
     SELECT
-      (SELECT COUNT(*) FROM companies) AS "companies",
+      (SELECT COUNT(*) FROM companies WHERE "displayStatus" = 'visible') AS "companies",
       (SELECT COUNT(*) FROM cases) AS "cases",
       (SELECT COUNT(*) FROM alerts) AS "alerts",
-      (SELECT COUNT(DISTINCT "companyId") FROM risk_scores) AS "scoredCompanies",
-      (SELECT COUNT(*) FROM companies WHERE "sectorKey" IS NOT NULL) AS "sectorMappedCompanies",
-      (SELECT COUNT(*) FROM companies WHERE cik IS NOT NULL) AS "publicCompanies",
+      (SELECT COUNT(DISTINCT rs."companyId") FROM risk_scores rs JOIN companies c ON c.id = rs."companyId" WHERE c."displayStatus" = 'visible') AS "scoredCompanies",
+      (SELECT COUNT(*) FROM companies WHERE "sectorKey" IS NOT NULL AND "displayStatus" = 'visible') AS "sectorMappedCompanies",
+      (SELECT COUNT(*) FROM companies WHERE cik IS NOT NULL AND "displayStatus" = 'visible') AS "publicCompanies",
       (SELECT COUNT(*) FROM cases WHERE "sourceId" IS NOT NULL) AS "sourceLinkedCases",
-      (SELECT AVG("sectorConfidence") FROM companies WHERE "sectorConfidence" IS NOT NULL) AS "sectorConfidence",
+      (SELECT AVG("sectorConfidence") FROM companies WHERE "sectorConfidence" IS NOT NULL AND "displayStatus" = 'visible') AS "sectorConfidence",
       (SELECT COUNT(*) FROM risk_scores WHERE "computedAt" >= ${since24h}) AS "scoreSnapshots24h",
       (SELECT COUNT(*) FROM alerts WHERE "createdAt" >= ${since24h}) AS "alerts24h",
       (

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { useWorkflowState } from "./useWorkflowState";
 
@@ -34,10 +33,10 @@ export function SavedSearches({ currentQuery }: { currentQuery: string }) {
         <ul className="divide-y divide-border">
           {workflow.state.savedSearches.map((search) => (
             <li key={search.id} className="flex items-center justify-between gap-3 px-5 py-3">
-              <Link href={`/search?q=${encodeURIComponent(search.query)}`} className="flex min-w-0 items-center gap-2 text-sm hover:text-accent">
+              <a href={`/search?q=${encodeURIComponent(search.query)}`} className="flex min-w-0 items-center gap-2 text-sm hover:text-accent">
                 <Search className="size-3.5 shrink-0 text-muted" />
                 <span className="truncate">{search.query}</span>
-              </Link>
+              </a>
               <button
                 type="button"
                 onClick={() => workflow.removeSearch(search.id)}

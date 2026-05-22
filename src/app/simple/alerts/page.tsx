@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { alertAttentionLevel, attentionLabel, type AttentionLevel } from "@/lib/simple-ui";
 import {
@@ -71,7 +70,7 @@ function AlertGroup({
         <ul className="divide-y divide-[hsl(35_24%_84%)]">
           {alerts.map((alert) => (
             <li key={alert.id}>
-              <Link
+              <a
                 href={`/brief/companies/${alert.company.id}`}
                 className="block px-5 py-4 transition hover:bg-[hsl(38_48%_92%)]"
               >
@@ -85,7 +84,7 @@ function AlertGroup({
                   </div>
                   <div className="shrink-0 text-xs text-[hsl(33_14%_43%)]">{formatRelative(alert.createdAt)}</div>
                 </div>
-              </Link>
+              </a>
             </li>
           ))}
         </ul>

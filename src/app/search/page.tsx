@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { Panel } from "@/components/Panel";
@@ -94,9 +93,9 @@ export default function SearchPage() {
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Link href={`/companies/${r.id}`} className="text-sm font-medium hover:text-accent">
+                            <a href={`/companies/${r.id}`} className="text-sm font-medium hover:text-accent">
                               {r.name}
-                            </Link>
+                            </a>
                             <AttentionPill level={level} label={attentionLabel(level)} />
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted">{attentionReason(input)}</div>

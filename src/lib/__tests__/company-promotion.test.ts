@@ -57,12 +57,16 @@ describe("company promotion helpers", () => {
     expect(
       summarizeDashboardEntityCounts({
         secListedUniverse: 7981,
+        sp1500Universe: 1500,
+        russell3000Universe: 3000,
         litigationLinkedCompanies: 6975,
         riskScoredCompanies: 6969,
         unresolvedObservedParties: 4905,
       }),
     ).toEqual({
       secListedUniverse: 7981,
+      sp1500Universe: 1500,
+      russell3000Universe: 3000,
       litigationLinkedCompanies: 6975,
       riskScoredCompanies: 6969,
       unresolvedObservedParties: 4905,

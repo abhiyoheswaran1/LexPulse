@@ -204,6 +204,14 @@ export function markAlertsRead(state: WorkflowState, alertIds: string[]): Workfl
   };
 }
 
+export function markAlertsUnread(state: WorkflowState, alertIds: string[]): WorkflowState {
+  const reopen = new Set(alertIds);
+  return {
+    ...state,
+    readAlertIds: state.readAlertIds.filter((id) => !reopen.has(id)),
+  };
+}
+
 function normalizeVisibleQuery(query: string): string {
   return query.trim().replace(/\s+/g, " ");
 }
