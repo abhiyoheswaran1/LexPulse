@@ -33,7 +33,7 @@ export default async function CoveragePage() {
           icon={report.operations.needsAttention ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
           label="Operations"
           value={report.operations.needsAttention ? "Review" : "Healthy"}
-          detail={`${report.operations.failedRuns24h.toLocaleString()} failed runs in 24h`}
+          detail={operationDetail(report.operations)}
           tone={report.operations.needsAttention ? "warn" : "ok"}
         />
       </section>
@@ -195,6 +195,18 @@ function MetricRow({ label, value, max }: { label: string; value: number; max: n
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function operationDetail(operations: { staleSources: number; failedRuns24h: number }) {
+  if (operations.staleSources > 0) {
+    return `${operations.staleSources.toLocaleString()} current source ${operations.staleSources === 1 ? "issue" : "issues"}`;
+  }
+
+  if (operations.failedRuns24h > 0) {
+    return `${operations.failedRuns24h.toLocaleString()} recovered failed ${operations.failedRuns24h === 1 ? "run" : "runs"} in 24h`;
+  }
+
+  return "No failed runs in 24h";
 }
 
 function healthClass(health: "healthy" | "running" | "stale" | "failed") {

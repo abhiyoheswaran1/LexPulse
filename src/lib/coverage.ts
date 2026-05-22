@@ -44,7 +44,7 @@ export function summarizeCoverage(input: CoverageInput) {
     operations: {
       staleSources: input.staleSources,
       failedRuns24h: input.failedRuns24h,
-      needsAttention: input.staleSources > 0 || input.failedRuns24h > 0,
+      needsAttention: input.staleSources > 0,
     },
   };
 }

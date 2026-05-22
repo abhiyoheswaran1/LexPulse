@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAccountIdFromCookie } from "@/lib/account";
 import { prisma } from "@/lib/db";
+import { rejectCrossOriginMutation } from "@/lib/request-security";
 import { captureErrorMessage } from "@/lib/telemetry";
 
 export async function POST(req: Request) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const body = await req.json().catch(() => ({}));
   const message = typeof body.message === "string" ? body.message.slice(0, 500) : "Client error";
   const digest = typeof body.digest === "string" ? body.digest.slice(0, 120) : null;

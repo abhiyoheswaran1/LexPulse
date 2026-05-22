@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAccount } from "@/lib/account";
 import { prisma } from "@/lib/db";
+import { rejectCrossOriginMutation } from "@/lib/request-security";
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const account = await getOrCreateAccount();
   const key = await prisma.apiKey.updateMany({
     where: { id: params.id, accountId: account.id },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createApiKey, getOrCreateAccount } from "@/lib/account";
 import { prisma } from "@/lib/db";
+import { rejectCrossOriginMutation } from "@/lib/request-security";
 
 export async function GET() {
   const account = await getOrCreateAccount();
@@ -27,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const account = await getOrCreateAccount();
   const body = await req.json().catch(() => ({}));
   const key = await createApiKey(account.id, typeof body.name === "string" ? body.name : "LexPulse API key");

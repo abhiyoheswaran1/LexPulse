@@ -73,4 +73,30 @@ describe("coverage summary", () => {
       operations: { needsAttention: false },
     });
   });
+
+  test("does not require attention for recovered failed runs", () => {
+    expect(
+      summarizeCoverage({
+        companyMasters: 10,
+        secListed: 10,
+        sp1500: 0,
+        russell3000: 0,
+        observedParties: 20,
+        matchedParties: 18,
+        unresolvedParties: 2,
+        highConfidenceMatches: 15,
+        mediumConfidenceMatches: 3,
+        lowConfidenceMatches: 1,
+        caseOutcomes: 4,
+        externalEvents: 2,
+        staleSources: 0,
+        failedRuns24h: 1,
+      }),
+    ).toMatchObject({
+      operations: {
+        failedRuns24h: 1,
+        needsAttention: false,
+      },
+    });
+  });
 });

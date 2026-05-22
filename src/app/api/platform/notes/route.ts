@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAccount } from "@/lib/account";
 import { prisma } from "@/lib/db";
+import { rejectCrossOriginMutation } from "@/lib/request-security";
 
 export async function GET(req: Request) {
   const account = await getOrCreateAccount();
@@ -29,6 +30,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const account = await getOrCreateAccount();
   const body = await req.json().catch(() => ({}));
   const targetType = typeof body.targetType === "string" ? body.targetType : "";

@@ -7,6 +7,7 @@ import {
   updateAccountIdentity,
   type WorkspacePreference,
 } from "@/lib/account";
+import { rejectCrossOriginMutation } from "@/lib/request-security";
 import { EMPTY_WORKFLOW_STATE, parseWorkflowState, type WorkflowState } from "@/lib/workflow";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const account = await getOrCreateAccount();
   const body = await req.json().catch(() => ({}));
   const workflow = normalizeWorkflowBody(body.workflow);
@@ -28,6 +32,9 @@ export async function PUT(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const rejected = rejectCrossOriginMutation(req);
+  if (rejected) return rejected;
+
   const account = await getOrCreateAccount();
   const body = await req.json().catch(() => ({}));
   try {
